@@ -32,18 +32,11 @@ class Lamp(models.Model):
     """
     Lamp model - represents a smart lamp in a room
     """
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255 , blank=True)
     status = models.BooleanField(default=False)  # True = on, False = off
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='lamps')
     
-    class Meta:
-        db_table = 'lamp'
-        verbose_name = 'Lamp'
-        verbose_name_plural = 'Lamps'
-    
-    def __str__(self):
-        status_text = "ON" if self.status else "OFF"
-        return f"{self.name} ({status_text}) in {self.room.name}"
+
     
     def toggle_status(self):
         """Toggle the lamp status"""
@@ -60,13 +53,6 @@ class LampSchedule(models.Model):
     on_time = models.DateTimeField()
     off_time = models.DateTimeField()
     
-    class Meta:
-        db_table = 'lamp_schedule'
-        verbose_name = 'Lamp Schedule'
-        verbose_name_plural = 'Lamp Schedules'
-    
-    def __str__(self):
-        return f"Schedule for {self.lamp.name}: {self.on_time} - {self.off_time}"
     
     def clean(self):
         """Validate that off_time is after on_time"""
@@ -75,41 +61,3 @@ class LampSchedule(models.Model):
             raise ValidationError("Off time must be after on time")
 
 
-class StatusLog(models.Model):
-    """
-    StatusLog model - tracks real-time lamp status changes
-    """
-    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='status_logs')
-    home = models.ForeignKey(Home, on_delete=models.CASCADE, related_name='status_logs')
-    room = models.ForeignKey(Room, on_delete=models.SET_NULL, null=True, blank=True, related_name='status_logs')
-    lamp = models.ForeignKey(Lamp, on_delete=models.CASCADE, related_name='status_logs')
-    status = models.BooleanField()  # True = on, False = off
-    timestamp = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'status_log'
-        verbose_name = 'Status Log'
-        verbose_name_plural = 'Status Logs'
-        ordering = ['-timestamp']
-    
-    def __str__(self):
-        status_text = "ON" if self.status else "OFF"
-        return f"{self.lamp.name} {status_text} at {self.timestamp} by {self.user.username}"
-    
-    @classmethod
-    def log_status_change(cls, user, lamp, status, home=None, room=None):
-        """
-        Create a status log entry for a lamp status change
-        """
-        if home is None:
-            home = lamp.room.home
-        if room is None:
-            room = lamp.room
-        
-        return cls.objects.create(
-            user=user,
-            home=home,
-            room=room,
-            lamp=lamp,
-            status=status
-        )
