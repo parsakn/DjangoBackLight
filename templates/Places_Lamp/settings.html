@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - Places Lamp</title>
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    
 </head>
 <body>
     {% include 'Places_Lamp/base_places_lamp.html' %}
@@ -32,7 +32,12 @@
             {{ room_form.as_p }}
             <button type="submit" name="submit_room">Add Room</button>
         </form>
-
+        <form method="post">
+            {% csrf_token %}
+            <h2>Add Schedul</h2>
+            {{ submit_schedul.as_p }}
+            <button type="submit" name="submit_schedul">Add Schedul</button>
+        </form>
         <form method="post">
             {% csrf_token %}
             <h2>Add Lamp</h2>
@@ -41,8 +46,6 @@
         </form>
     </div>
 
-    <footer>
-        <p>&copy; 2023 SmartLight Project</p>
-    </footer>
+
 </body>
 </html>

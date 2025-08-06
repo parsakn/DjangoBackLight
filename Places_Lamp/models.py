@@ -5,8 +5,11 @@ class Place(models.Model):
     """
     Place model - represents a location where users can have homes
     """
-    name = models.CharField(max_length=128 )
+    name = models.CharField(max_length=128 , unique=True )
     owner = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='places')
+
+    def __str__(self) : 
+        return self.name
     
 
 
@@ -14,29 +17,32 @@ class Home(models.Model):
     """
     Home model - represents a home within a place
     """
-    name = models.CharField(max_length=255 ,blank=True)
+    name = models.CharField(max_length=255 ,blank=True , unique=True)
     place = models.ForeignKey(Place, on_delete=models.CASCADE, related_name='homes')
-    
+    def __str__(self) : 
+        return self.name
 
 
 class Room(models.Model):
     """
     Room model - represents a room within a home
     """
-    name = models.CharField(max_length=255 , blank=True)
+    name = models.CharField(max_length=255 , blank=True , unique=True)
     home = models.ForeignKey(Home, on_delete=models.CASCADE, related_name='rooms')
-    
+    def __str__(self) : 
+        return self.name
 
 
 class Lamp(models.Model):
     """
     Lamp model - represents a smart lamp in a room
     """
-    name = models.CharField(max_length=255 , blank=True)
+    name = models.CharField(max_length=255 , blank=True , unique=True)
     status = models.BooleanField(default=False)  # True = on, False = off
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='lamps')
     
-
+    def __str__(self) : 
+        return self.name
     
     def toggle_status(self):
         """Toggle the lamp status"""

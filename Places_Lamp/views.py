@@ -1,11 +1,11 @@
 from django.shortcuts import render
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
-from .forms import PlaceForm , HomeForm , LampForm ,RoomForm
+from .forms import PlaceForm , HomeForm , LampForm ,RoomForm, LampSchedulForm 
 # Create your views here.
 
 class SettingsView(LoginRequiredMixin, View):
-    template_name = 'settings.html'
+    template_name = 'Places_Lamp/settings.html'
 
     def get(self, request):
         return render(request, self.template_name, {
@@ -13,6 +13,8 @@ class SettingsView(LoginRequiredMixin, View):
             'home_form': HomeForm(),
             'room_form': RoomForm(),
             'lamp_form' : LampForm(),
+            'lamp_schedul' : LampSchedulForm(),
+            
         })
 
     def post(self, request):
@@ -20,6 +22,7 @@ class SettingsView(LoginRequiredMixin, View):
         home_form = HomeForm()
         room_form = RoomForm()
         lamp_form = LampForm()
+        lamp_schedul = LampSchedulForm()
 
         if 'submit_place' in request.POST:
             place_form = PlaceForm(request.POST)
@@ -40,14 +43,22 @@ class SettingsView(LoginRequiredMixin, View):
             if room_form.is_valid():
                 room_form.save()
 
+        elif 'submit_schedul' in request.POST:
+            lamp_schedul = LampSchedulForm(request.POST)
+            if lamp_schedul.is_valid():
+                lamp_schedul.save()
+        
         elif 'submit_lamp' in request.POST:
             lamp_form = RoomForm(request.POST)
             if lamp_form.is_valid():
                 lamp_form.save()
+        
 
+            
         return render(request, self.template_name, {
             'place_form': place_form,
             'home_form': home_form,
             'room_form': room_form,
             'lamp_form' : lamp_form,
+            'submit_schedul' : lamp_schedul , 
         })

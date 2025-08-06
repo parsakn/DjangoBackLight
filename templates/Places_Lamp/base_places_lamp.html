@@ -11,7 +11,7 @@
         <h1>Places Lamp</h1>
         <nav>
             <ul>
-                <li><a href="{% url 'settings' %}">Settings</a></li>
+                <li><a href="{% url 'add_info' %}">Settings</a></li>
                 <li><a href="{% url 'logout' %}">Logout</a></li>
             </ul>
         </nav>
@@ -22,8 +22,5 @@
         {% endblock %}
     </main>
 
-    <footer>
-        <p>&copy; {{ current_year }} Places Lamp. All rights reserved.</p>
-    </footer>
 </body>
 </html>

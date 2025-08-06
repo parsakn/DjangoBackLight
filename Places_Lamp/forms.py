@@ -1,5 +1,5 @@
 from django import forms
-from .models import Home, Room, Lamp , Place
+from .models import Home, Room, Lamp , Place , LampSchedule
 
 
 class PlaceForm(forms.ModelForm):
@@ -40,4 +40,15 @@ class LampForm(forms.ModelForm):
 
         if user is not None:
             self.fields['room'].queryset = Room.objects.filter(room__owner=user)
+
+class LampSchedulForm(forms.ModelForm):
+    class Meta:
+        model = LampSchedule
+        fields = "__all__"
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)  
+        super().__init__(*args, **kwargs)
+
+        if user is not None:
+            self.fields['lamp'].queryset = Lamp.objects.filter(lamp__owner=user)
 

@@ -1,5 +1,5 @@
 from django.urls import path
 from . import views
 urlpatterns = [
-    # path("add/" , ) , 
+    path("add/" , views.SettingsView.as_view() , name="add_info") , 
 ]
