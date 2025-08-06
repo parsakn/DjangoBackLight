@@ -1,11 +1,17 @@
 from django import forms
 from .models import Home, Room, Lamp , Place , LampSchedule
-
+from django.forms import DateTimeInput
 
 class PlaceForm(forms.ModelForm):
     class Meta : 
         model = Place
         fields = ["name"]
+    # def __init__(self, *args, **kwargs):
+    #     user = kwargs.pop('user', None)  
+    #     super().__init__(*args, **kwargs)
+
+    #     if user is not None:
+    #         self.fields['owner'].queryset = Place.objects.filter(place__owner=user)
     
 
 class HomeForm(forms.ModelForm):
@@ -17,7 +23,7 @@ class HomeForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if user is not None:
-            self.fields['place'].queryset = Place.objects.filter(place__owner=user)
+            self.fields['place'].queryset = Place.objects.filter(owner=user)
 
 class RoomForm(forms.ModelForm):
     class Meta:
@@ -28,7 +34,7 @@ class RoomForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if user is not None:
-            self.fields['home'].queryset = Home.objects.filter(home__owner=user)
+            self.fields['home'].queryset = Home.objects.filter(place__owner=user)
 
 class LampForm(forms.ModelForm):
     class Meta:
@@ -39,16 +45,20 @@ class LampForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if user is not None:
-            self.fields['room'].queryset = Room.objects.filter(room__owner=user)
+            self.fields['room'].queryset = Room.objects.filter(home__place__owner=user)
 
 class LampSchedulForm(forms.ModelForm):
     class Meta:
         model = LampSchedule
         fields = "__all__"
+        widgets = {
+            'on_time': DateTimeInput(attrs={'type': 'datetime-local'}),
+            'off_time': DateTimeInput(attrs={'type': 'datetime-local'}),
+        }
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)  
         super().__init__(*args, **kwargs)
 
         if user is not None:
-            self.fields['lamp'].queryset = Lamp.objects.filter(lamp__owner=user)
+            self.fields['lamp'].queryset = Lamp.objects.filter(room__home__place__owner=user)
 

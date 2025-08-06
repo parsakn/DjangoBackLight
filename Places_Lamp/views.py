@@ -19,10 +19,10 @@ class SettingsView(LoginRequiredMixin, View):
 
     def post(self, request):
         place_form = PlaceForm()
-        home_form = HomeForm()
-        room_form = RoomForm()
-        lamp_form = LampForm()
-        lamp_schedul = LampSchedulForm()
+        home_form = HomeForm(user=request.user)
+        room_form = RoomForm(user=request.user)
+        lamp_form = LampForm(user=request.user)
+        lamp_schedul = LampSchedulForm(user=request.user)
 
         if 'submit_place' in request.POST:
             place_form = PlaceForm(request.POST)
@@ -49,7 +49,7 @@ class SettingsView(LoginRequiredMixin, View):
                 lamp_schedul.save()
         
         elif 'submit_lamp' in request.POST:
-            lamp_form = RoomForm(request.POST)
+            lamp_form = LampForm(request.POST)
             if lamp_form.is_valid():
                 lamp_form.save()
         
@@ -60,5 +60,5 @@ class SettingsView(LoginRequiredMixin, View):
             'home_form': home_form,
             'room_form': room_form,
             'lamp_form' : lamp_form,
-            'submit_schedul' : lamp_schedul , 
+            'lamp_schedul' : lamp_schedul , 
         })
