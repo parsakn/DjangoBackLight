@@ -5,7 +5,7 @@ class Place(models.Model):
     """
     Place model - represents a location where users can have homes
     """
-    name = models.CharField(max_length=128 ,blank=True)
+    name = models.CharField(max_length=128 )
     owner = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='places')
     
 
