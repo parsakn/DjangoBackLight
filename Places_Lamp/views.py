@@ -12,7 +12,7 @@ class SettingsView(LoginRequiredMixin, View):
             'place_form': PlaceForm(),
             'home_form': HomeForm(),
             'room_form': RoomForm(),
-            'lamp_form' : LampForm()
+            'lamp_form' : LampForm(),
         })
 
     def post(self, request):
@@ -49,5 +49,5 @@ class SettingsView(LoginRequiredMixin, View):
             'place_form': place_form,
             'home_form': home_form,
             'room_form': room_form,
-            'lamp_form' : lamp_form
+            'lamp_form' : lamp_form,
         })

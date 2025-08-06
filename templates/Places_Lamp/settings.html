@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Places Lamp</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body>
+    {% include 'Places_Lamp/base_places_lamp.html' %}
+    
+    <div class="container">
+        <h1>Settings</h1>
+        
+        <form method="post">
+            {% csrf_token %}
+            <h2>Add Place</h2>
+            {{ place_form.as_p }}
+            <button type="submit" name="submit_place">Add Place</button>
+        </form>
+
+        <form method="post">
+            {% csrf_token %}
+            <h2>Add Home</h2>
+            {{ home_form.as_p }}
+            <button type="submit" name="submit_home">Add Home</button>
+        </form>
+
+        <form method="post">
+            {% csrf_token %}
+            <h2>Add Room</h2>
+            {{ room_form.as_p }}
+            <button type="submit" name="submit_room">Add Room</button>
+        </form>
+
+        <form method="post">
+            {% csrf_token %}
+            <h2>Add Lamp</h2>
+            {{ lamp_form.as_p }}
+            <button type="submit" name="submit_lamp">Add Lamp</button>
+        </form>
+    </div>
+
+    <footer>
+        <p>&copy; 2023 SmartLight Project</p>
+    </footer>
+</body>
+</html>
