@@ -22,6 +22,6 @@ urlpatterns = [
     path("Profile/" , include("Places_Lamp.urls")),
     path('admin/', admin.site.urls),
     path("Account/" , include("User.urls")) , 
-    path("" , views.home , name="home") , 
+    path("" , views.ViewHome.as_view() , name="home") , 
 
 ]
