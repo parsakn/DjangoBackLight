@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
-from .forms import PlaceForm , HomeForm , LampForm ,RoomForm, LampSchedulForm 
+from .forms import  HomeForm , LampForm ,RoomForm, LampSchedulForm 
 # Create your views here.
 
 class SettingsView(LoginRequiredMixin, View):
@@ -9,7 +9,7 @@ class SettingsView(LoginRequiredMixin, View):
 
     def get(self, request):
         return render(request, self.template_name, {
-            'place_form': PlaceForm(),
+            
             'home_form': HomeForm(),
             'room_form': RoomForm(),
             'lamp_form' : LampForm(),
@@ -18,24 +18,20 @@ class SettingsView(LoginRequiredMixin, View):
         })
 
     def post(self, request):
-        place_form = PlaceForm()
-        home_form = HomeForm(user=request.user)
+
+        home_form = HomeForm()
         room_form = RoomForm(user=request.user)
         lamp_form = LampForm(user=request.user)
         lamp_schedul = LampSchedulForm(user=request.user)
 
-        if 'submit_place' in request.POST:
-            place_form = PlaceForm(request.POST)
-            if place_form.is_valid():
-                place=place_form.save(commit=False)
-                place.owner = request.user
-                place.save()
-                pass
 
-        elif 'submit_home' in request.POST:
+
+        if 'submit_home' in request.POST:
             home_form = HomeForm(request.POST)
             if home_form.is_valid():
-                home_form.save()
+                home=home_form.save(commit=False)
+                home.owner = request.user 
+                home.save()
                 
 
         elif 'submit_room' in request.POST:
@@ -56,7 +52,7 @@ class SettingsView(LoginRequiredMixin, View):
 
             
         return render(request, self.template_name, {
-            'place_form': place_form,
+            
             'home_form': home_form,
             'room_form': room_form,
             'lamp_form' : lamp_form,

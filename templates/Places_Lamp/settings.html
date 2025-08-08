@@ -12,12 +12,7 @@
     <div class="container">
         <h1>Settings</h1>
         
-        <form method="post">
-            {% csrf_token %}
-            <h2>Add Place</h2>
-            {{ place_form.as_p }}
-            <button type="submit" name="submit_place">Add Place</button>
-        </form>
+
 
         <form method="post">
             {% csrf_token %}

@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 # Create your models here.
-class Place(models.Model):
+class Home(models.Model):
     """
     Place model - represents a location where users can have homes
     """
@@ -13,14 +13,7 @@ class Place(models.Model):
     
 
 
-class Home(models.Model):
-    """
-    Home model - represents a home within a place
-    """
-    name = models.CharField(max_length=255 ,blank=True , unique=True)
-    place = models.ForeignKey(Place, on_delete=models.CASCADE, related_name='homes')
-    def __str__(self) : 
-        return self.name
+
 
 
 class Room(models.Model):
