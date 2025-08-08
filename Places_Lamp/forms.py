@@ -50,7 +50,7 @@ class LampForm(forms.ModelForm):
 class LampSchedulForm(forms.ModelForm):
     class Meta:
         model = LampSchedule
-        fields = "__all__"
+        fields ="__all__"
         widgets = {
             'on_time': DateTimeInput(attrs={'type': 'datetime-local'}),
             'off_time': DateTimeInput(attrs={'type': 'datetime-local'}),
