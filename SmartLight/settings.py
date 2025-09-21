@@ -30,6 +30,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    # "daphne",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -39,6 +40,8 @@ INSTALLED_APPS = [
     "User",
     "Places_Lamp",
     "API",
+    "channels",
+    "MQTT",
 ]
 
 MIDDLEWARE = [
@@ -68,6 +71,7 @@ TEMPLATES = [
     },
 ]
 
+ASGI_APPLICATION = 'SmartLight.asgi.application'
 WSGI_APPLICATION = 'SmartLight.wsgi.application'
 
 
@@ -78,6 +82,13 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
+
+#for temp(not for production)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
     }
 }
 
@@ -124,3 +135,7 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'User.CustomeUser'
 LOGIN_URL=""
+
+# Brocker cridentials
+MQTT_BROKER = "https://node.lilms.top"
+MQTT_PORT = 1883

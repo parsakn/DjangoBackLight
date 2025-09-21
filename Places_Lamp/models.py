@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from SmartLight import settings
+import uuid
 # Create your models here.
 class Home(models.Model):
     """
@@ -7,6 +9,11 @@ class Home(models.Model):
     """
     name = models.CharField(max_length=128 , unique=True )
     owner = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='places')
+    shared_with = models.ManyToManyField(
+        get_user_model(),
+        blank=True,
+        related_name="shared_homes",
+    )
 
     def __str__(self) : 
         return self.name
@@ -33,15 +40,30 @@ class Lamp(models.Model):
     name = models.CharField(max_length=255 , blank=True , unique=True)
     status = models.BooleanField(default=False)  # True = on, False = off
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='lamps')
-    
+    shared_with = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="shared_lamps"
+    )# we can have multy access
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)  # 🔒 secret key
+
+    class Meta:
+        unique_together = ("room", "name")  # avoid global uniqueness clash
+
+    @property
+    def owners(self):
+        
+        return [self.room.home.owner] + list(self.shared_with.all())
+
     def __str__(self) : 
         return self.name
     
-    def toggle_status(self):
-        """Toggle the lamp status"""
-        self.status = not self.status
-        self.save()
-        return self.status
+    def can_access(self, user):
+        return (
+            user == self.room.home.owner
+            or user in self.shared_with.all()
+            or user in self.room.home.shared_with.all()
+        )
 
 
 class LampSchedule(models.Model):
