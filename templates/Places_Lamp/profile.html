@@ -11,7 +11,10 @@
       <td>{{ lamp.room.name }}</td>
       <td class="status">{{ lamp.status }}</td>
       <td>
-        <button class="toggle-btn">Toggle</button>
+        <label>
+          <input type="checkbox" class="toggle-checkbox" {% if lamp.status %}checked{% endif %} />
+          <span class="vis">On</span>
+        </label>
       </td>
     </tr>
     {% empty %}
@@ -22,35 +25,82 @@
 
 <script>
 (function(){
-  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   const wsUrl = `${protocol}://${window.location.host}/ws/light/`;
-  const socket = new WebSocket(wsUrl);
 
-  socket.addEventListener('open', () => console.log('WS open'));
-  socket.addEventListener('close', () => console.log('WS closed'));
-  socket.addEventListener('error', e => console.error('WS error', e));
+  // --- UI status indicator ---
+  const statusEl = document.createElement("div");
+  statusEl.id = "ws-status";
+  statusEl.style.cssText = "position:fixed;right:10px;bottom:10px;padding:6px 10px;border-radius:6px;background:#eee;color:#000;z-index:9999;";
+  statusEl.textContent = "WS: connecting...";
+  document.body.appendChild(statusEl);
 
-  socket.addEventListener('message', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      // data expected: { lamp, token, status, raw }
-      const rows = document.querySelectorAll(`[data-token="${data.token}"]`);
-      rows.forEach(r => {
-        const statusCell = r.querySelector('.status');
-        statusCell.textContent = data.status;
-      });
-    } catch(err) { console.error('invalid ws data', err); }
-  });
+  let socket = null;
 
-  document.querySelectorAll('.toggle-btn').forEach(btn => {
-    btn.addEventListener('click', (ev) => {
-      const row = ev.target.closest('tr');
-      const token = row.getAttribute('data-token');
-      // send toggle request; UI will update optimistically from server-side broadcast
-      socket.send(JSON.stringify({ token: token, payload: 'TOGGLE' }));
+  function connect() {
+    console.log("Connecting to", wsUrl);
+    socket = new WebSocket(wsUrl);
+
+    socket.addEventListener("open", () => {
+      console.log("WS open ✅");
+      statusEl.textContent = "WS: open";
+      statusEl.style.background = "#c8f7c5";
     });
+
+    socket.addEventListener("close", (ev) => {
+      console.log("WS closed ❌", ev);
+      statusEl.textContent = "WS: closed";
+      statusEl.style.background = "#f7c5c5";
+      setTimeout(connect, 3000); // auto-reconnect
+    });
+
+    socket.addEventListener("error", (e) => {
+      console.error("WS error", e);
+      statusEl.textContent = "WS: error";
+      statusEl.style.background = "#f7c5c5";
+    });
+
+    socket.addEventListener("message", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        console.log("⬅️ WS message:", data);
+        const rows = document.querySelectorAll(`[data-token="${data.token}"]`);
+        rows.forEach(r => {
+          const statusCell = r.querySelector(".status");
+          if (statusCell) statusCell.textContent = data.status ? "On" : "Off";
+          const cb = r.querySelector(".toggle-checkbox");
+          if (cb) cb.checked = !!data.status;
+        });
+      } catch(err) {
+        console.error("Invalid WS data", err);
+      }
+    });
+  }
+
+  connect();
+
+  // --- Event delegation for checkboxes ---
+  document.addEventListener("change", (ev) => {
+    if (!ev.target.matches(".toggle-checkbox")) return;
+    const row = ev.target.closest("tr");
+    if (!row) return;
+
+    const token = row.getAttribute("data-token");
+    const payload = ev.target.checked ? "ON" : "OFF";
+
+    console.log("➡️ Sending via WS:", { token, payload });
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      console.warn("WS not open - cannot send message");
+      return;
+    }
+
+    socket.send(JSON.stringify({ token, payload }));
+
+    // Optimistic UI update
+    const statusCell = row.querySelector(".status");
+    if (statusCell) statusCell.textContent = ev.target.checked ? "On" : "Off";
   });
+
 })();
 </script>
-
-

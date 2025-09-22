@@ -30,7 +30,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    # "daphne",
+    "daphne",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -137,5 +137,5 @@ AUTH_USER_MODEL = 'User.CustomeUser'
 LOGIN_URL=""
 
 # Brocker cridentials
-MQTT_BROKER = "https://node.lilms.top"
+MQTT_BROKER = "node.lilms.top"
 MQTT_PORT = 1883

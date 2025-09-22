@@ -4,26 +4,29 @@ from asgiref.sync import async_to_sync
 from asgiref.sync import sync_to_async
 import paho.mqtt.publish as publish
 from Places_Lamp.models import Lamp
+from SmartLight import settings
 
-BROKER_URL = "mqtt.example.com"
+BROKER_URL = settings.MQTT_BROKER
 
 
 class MqttConsumer(SyncConsumer):
     """
     Handles MQTT messages (subscribe + publish).
     """
-    @classmethod
+    @staticmethod
     def parse_bool(p):
-        if(p=="1" or p=="on") : 
+        if(p=="1" or p=="on" or p=="ON") : 
             return True 
-        elif (p=="0" or p=="off"):
+        elif (p=="0" or p=="off" or p=="OFF"):
             return False
         else : 
             return None
+        
+    
     def mqtt_sub(self, event):
         topic = event['text']['topic']
         payload = event['text']['payload']
-
+        print("mqtt_sub")
         # Extract lamp token from topic
         try:
             # here token means mac address 
@@ -73,7 +76,8 @@ class MqttConsumer(SyncConsumer):
         """
         Publish only if the requesting user is authorized.
         """
-        user = event.get("user")  # must be passed from WebSocket
+        print("in mqtt publish", flush=True)
+        user_id = event.get("user")  # user id passed from WebSocket consumer
         token = event['text']['token']
         payload = event['text']['payload']
 
@@ -82,27 +86,39 @@ class MqttConsumer(SyncConsumer):
         except Lamp.DoesNotExist:
             print("⚠️ Invalid lamp token")
             return
-        # ensure user is authorized
-        if user is None:
-            print("❌ mqtt_pub called without user")
+
+        # resolve user from id (safe across channel layer boundaries)
+        if user_id is None:
+            print("❌ mqtt_pub called without user id")
+            return
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        try:
+            user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            print("❌ mqtt_pub: user not found")
             return
 
         if not lamp.can_access(user):
             print(f"❌ Unauthorized publish attempt by {user.username} for lamp {lamp.name}")
             return
 
-        topic = f"smartlight/control/{lamp.token}"
-        print(f"MQTT PUB → {user.username} → {topic}={payload}")
+        topic = f"Devices/{token}/command"
+        print(f"MQTT PUB → {user.username} → {topic}={payload}", flush=True)
 
-        publish.single(topic, payload, hostname=BROKER_URL)
+        try:
+            publish.single(topic, payload, hostname=BROKER_URL)
+        except Exception as e:
+            # keep consumer resilient and log publish errors
+            print("⚠️ MQTT publish failed:", e, flush=True)
         
 class LightConsumer(AsyncJsonWebsocketConsumer):
 
-    @classmethod
+    @staticmethod
     def parse_bool(p):
-        if(p=="1" or p=="on") : 
+        if(p=="1" or p=="on" or p=="ON") : 
             return True 
-        elif (p=="0" or p=="off"):
+        elif (p=="0" or p=="off" or p=="OFF"):
             return False
         else : 
             return None
@@ -124,17 +140,25 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
         """
         User wants to toggle lamp
         """
+        print("in recive Json")
         token = content.get("token")
         payload = content.get("payload")  # e.g., "ON" / "OFF"
         # send through channel layer to 'mqtt' channel (SyncConsumer)
-        await self.channel_layer.send(
-            "mqtt",
-            {
-                "type": "mqtt.pub",
-                "user": self.scope["user"],
-                "text": {"token": token, "payload": payload},
-            },
-        )
+        # send user id (serializable) to the channel layer; resolve user in mqtt_pub
+        print("user id : ",getattr(self.scope.get("user"), "id", None))
+        try:
+            print("sending to channel 'mqtt' ->", token, payload)
+            await self.channel_layer.send(
+                "mqtt",
+                {
+                    "type": "mqtt.pub",
+                    "user": getattr(self.scope.get("user"), "id", None),
+                    "text": {"token": token, "payload": payload},
+                },
+            )
+            print("channel send completed")
+        except Exception as e:
+            print("⚠️ channel send failed:", e)
 
         # Also update DB and broadcast immediately so all shared users see the change
         # without waiting for the MQTT roundtrip from the device.
@@ -170,6 +194,17 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
 
             for target in targets:
                 await self.channel_layer.group_send(f"user_{target.id}", {"type": "lamp.status", "text": data})
+
+            # Fallback: publish directly from the websocket path if channel routing
+            # to the named 'mqtt' consumer doesn't reach the SyncConsumer for any reason.
+            # Do this after authorization and DB update to avoid security issues.
+            try:
+                topic = f"Devices/{token}/command"
+                # Use sync_to_async to avoid blocking the event loop
+                await sync_to_async(publish.single)(topic, payload, hostname=BROKER_URL)
+                print(f"Fallback MQTT PUB → {topic}={payload}", flush=True)
+            except Exception as e:
+                print("⚠️ Fallback MQTT publish failed:", e, flush=True)
 
         await _update_and_broadcast()
 
