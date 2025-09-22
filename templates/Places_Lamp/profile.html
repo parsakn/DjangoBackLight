@@ -1,0 +1,56 @@
+
+<h1>Your Lamps</h1>
+<table id="lamps-table">
+  <thead>
+    <tr><th>Name</th><th>Room</th><th>Status</th><th>Action</th></tr>
+  </thead>
+  <tbody>
+    {% for lamp in lamps %}
+    <tr data-token="{{ lamp.token }}" id="lamp-{{ lamp.id }}">
+      <td>{{ lamp.name }}</td>
+      <td>{{ lamp.room.name }}</td>
+      <td class="status">{{ lamp.status }}</td>
+      <td>
+        <button class="toggle-btn">Toggle</button>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4">No lamps found</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+(function(){
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const wsUrl = `${protocol}://${window.location.host}/ws/light/`;
+  const socket = new WebSocket(wsUrl);
+
+  socket.addEventListener('open', () => console.log('WS open'));
+  socket.addEventListener('close', () => console.log('WS closed'));
+  socket.addEventListener('error', e => console.error('WS error', e));
+
+  socket.addEventListener('message', (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      // data expected: { lamp, token, status, raw }
+      const rows = document.querySelectorAll(`[data-token="${data.token}"]`);
+      rows.forEach(r => {
+        const statusCell = r.querySelector('.status');
+        statusCell.textContent = data.status;
+      });
+    } catch(err) { console.error('invalid ws data', err); }
+  });
+
+  document.querySelectorAll('.toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      const row = ev.target.closest('tr');
+      const token = row.getAttribute('data-token');
+      // send toggle request; UI will update optimistically from server-side broadcast
+      socket.send(JSON.stringify({ token: token, payload: 'TOGGLE' }));
+    });
+  });
+})();
+</script>
+
+

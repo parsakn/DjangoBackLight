@@ -1,6 +1,7 @@
 from channels.consumer import SyncConsumer
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from asgiref.sync import async_to_sync
+from asgiref.sync import sync_to_async
 import paho.mqtt.publish as publish
 from Places_Lamp.models import Lamp
 
@@ -96,6 +97,16 @@ class MqttConsumer(SyncConsumer):
         publish.single(topic, payload, hostname=BROKER_URL)
         
 class LightConsumer(AsyncJsonWebsocketConsumer):
+
+    @classmethod
+    def parse_bool(p):
+        if(p=="1" or p=="on") : 
+            return True 
+        elif (p=="0" or p=="off"):
+            return False
+        else : 
+            return None
+
     async def connect(self):
         user = self.scope["user"]
         if user.is_authenticated:
@@ -124,6 +135,43 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
                 "text": {"token": token, "payload": payload},
             },
         )
+
+        # Also update DB and broadcast immediately so all shared users see the change
+        # without waiting for the MQTT roundtrip from the device.
+        async def _update_and_broadcast():
+            user = self.scope.get("user")
+            try:
+                lamp = await sync_to_async(Lamp.objects.get)(token=token)
+            except Lamp.DoesNotExist:
+                return
+
+            # Check authorization
+            can = await sync_to_async(lamp.can_access)(user)
+            if not can:
+                return
+
+            parsed = LightConsumer.parse_bool(payload)
+            if parsed is not None:
+                # save status
+                await sync_to_async(lambda: lamp.__class__.objects.filter(pk=lamp.pk).update(status=parsed))()
+
+            # prepare targets: owner, lamp.shared_with, home.shared_with
+            owner = lamp.room.home.owner
+            targets = [owner]
+            targets += list(await sync_to_async(list)(lamp.shared_with.all()))
+            targets += list(await sync_to_async(list)(lamp.room.home.shared_with.all()))
+
+            data = {
+                "lamp": lamp.name,
+                "token": str(lamp.token),
+                "status": bool(parsed) if parsed is not None else bool(lamp.status),
+                "raw": payload,
+            }
+
+            for target in targets:
+                await self.channel_layer.group_send(f"user_{target.id}", {"type": "lamp.status", "text": data})
+
+        await _update_and_broadcast()
 
     async def lamp_status(self, event):
         """

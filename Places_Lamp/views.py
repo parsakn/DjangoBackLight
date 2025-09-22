@@ -58,3 +58,24 @@ class SettingsView(LoginRequiredMixin, View):
             'lamp_form' : lamp_form,
             'lamp_schedul' : lamp_schedul , 
         })
+    
+class Profile(LoginRequiredMixin, View) : 
+    template_name = 'Places_Lamp/profile.html'
+
+    def get(self, request):
+        # lamps owned by user's homes
+        owned_homes = request.user.places.all()
+        owned_lamps = []
+        for home in owned_homes:
+            for room in home.rooms.all():
+                owned_lamps.extend(list(room.lamps.all()))
+
+        # lamps shared with user
+        shared_lamps = request.user.shared_lamps.all()
+
+        # combine and deduplicate by id
+        lamps = {l.id: l for l in (owned_lamps + list(shared_lamps))}.values()
+
+        return render(request, self.template_name, {"lamps": lamps})
+
+
