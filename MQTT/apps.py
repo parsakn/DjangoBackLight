@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 import sys
 import threading
+import os
 
 
 
@@ -8,24 +9,30 @@ import threading
 class MqttConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'MQTT'
+
+
     def ready(self):
-        # Auto-start MQTT bridge only for the development runserver command.
-        # Avoid starting during manage.py migrate, test, shell, collectstatic, etc.
-        try:
-            argv = sys.argv
-        except Exception:
-            argv = []
+        # Require an explicit opt-in to autostart the bridge during runserver.
+        # This avoids surprising behavior where the bridge starts in the same
+        # process (and possibly before ChannelNameRouter/consumers are ready)
+        # which can make debugging cross-process delivery hard.
+        if os.environ.get("MQTT_AUTOSTART", "false").lower() != "true":
+            return
 
-        if len(argv) >= 2 and argv[1] in ("runserver",):
-            # Start in a daemon thread so it doesn't block process exit.
-            from .mqtt_bridge import start_bridge
+        # Avoid starting twice when runserver reloads
+        if os.environ.get("RUN_MAIN") != "true":
+            return
 
-            def _start():
-                try:
-                    start_bridge()
-                except Exception:
-                    pass
+        from .mqtt_bridge import start_bridge  # wherever your start_bridge lives
 
-            t = threading.Thread(target=_start, daemon=True)
-            t.start()
+        def _run():
+            try:
+                start_bridge()
+            except Exception as e:
+                import traceback
+                print("❌ MQTT bridge crashed:", e)
+                traceback.print_exc()
 
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        print("✅ MQTT bridge thread started")

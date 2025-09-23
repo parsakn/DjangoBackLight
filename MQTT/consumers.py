@@ -22,11 +22,14 @@ class MqttConsumer(SyncConsumer):
         else : 
             return None
         
+
+    def default(self, event):
+        print("🔥 default() caught event:", event, flush=True)
     
     def mqtt_sub(self, event):
         topic = event['text']['topic']
         payload = event['text']['payload']
-        print("mqtt_sub")
+        print("mqtt_sub" , flush=True)
         # Extract lamp token from topic
         try:
             # here token means mac address 

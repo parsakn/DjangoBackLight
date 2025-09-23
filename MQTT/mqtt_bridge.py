@@ -4,6 +4,8 @@ import paho.mqtt.client as mqtt
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from SmartLight import settings
+from Places_Lamp.models import Lamp
+import json
 
 
 def start_bridge(broker: Optional[str] = None, port: Optional[int] = None, on_message_extra=None):
@@ -15,6 +17,10 @@ def start_bridge(broker: Optional[str] = None, port: Optional[int] = None, on_me
     broker = broker or settings.MQTT_BROKER
     port = port or settings.MQTT_PORT
     channel_layer = get_channel_layer()
+    try:
+        print("Channel layer backend:", type(channel_layer), flush=True)
+    except Exception:
+        pass
 
 
     # subscribe to topic i want
@@ -25,13 +31,61 @@ def start_bridge(broker: Optional[str] = None, port: Optional[int] = None, on_me
     # behavior when new message arive from subscribed topic
     def on_message(client, userdata, msg):
         topic = msg.topic
-        payload = msg.payload.decode("utf-8")
+        payload_bytes = msg.payload
+        try:
+        # decode bytes to string and parse JSON
+            payload = json.loads(payload_bytes.decode("utf-8"))
+        except json.JSONDecodeError:
+            print("⚠️ Failed to parse payload as JSON, raw:", payload_bytes)
+            payload = None
         print(f"MQTT recv {topic} -> {payload}")
-        # send it to channel layer
-        async_to_sync(channel_layer.send)(
-            "mqtt",
-            {"type": "mqtt.sub", "text": {"topic": topic, "payload": payload}},
-        )
+        # Try to update Lamp in DB directly so web UI sees changes even if
+        # the named-channel consumer doesn't get invoked across processes.
+        try:
+            token = topic.split("/")[1]
+            # interpret simple payloads
+            parsed = None
+            p = payload.get("msg")
+            
+            if p in ("1", "on", "ON"):
+                parsed = True
+            elif p in ("0", "off", "OFF"):
+                parsed = False
+            
+            if parsed is not None:
+                lamp = Lamp.objects.get(token=token)
+                lamp.status = parsed
+                lamp.save(update_fields=["status"])
+                # Broadcast to all authorized users of this lamp
+                targets = [lamp.room.home.owner]
+                targets += list(lamp.shared_with.all())
+                targets += list(lamp.room.home.shared_with.all())
+                data = {
+                    "lamp": lamp.name,
+                    "token": str(lamp.token),
+                    "status": bool(lamp.status),
+                    "raw": payload,
+                }
+                for target in targets:
+                    async_to_sync(channel_layer.group_send)(
+                        f"user_{target.id}", {"type": "lamp.status", "text": data}
+                    )
+                print("Bridge: updated Lamp and broadcasted to groups", flush=True)
+        except Exception as _e:
+            # Non-fatal: continue to also send the raw message into the channel layer
+            print("Bridge: failed direct DB update/broadcast:", _e , flush=True)
+
+        # Always forward the raw message into the named 'mqtt' channel so
+        # existing SyncConsumer/MqttConsumer can pick it up if available.
+        try:
+            print("Bridge sending to channel 'mqtt'", flush=True)
+            async_to_sync(channel_layer.send)(
+                "mqtt",
+                {"type": "mqtt.sub", "text": {"topic": topic, "payload": payload}},
+            )
+            print("Bridge channel send completed", flush=True)
+        except Exception as e:
+            print("⚠️ Bridge failed to send to channel layer:", e, flush=True)
         if on_message_extra:
             try:
                 on_message_extra(topic, payload)
