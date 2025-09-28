@@ -2,20 +2,23 @@
 <h1>Your Lamps</h1>
 <table id="lamps-table">
   <thead>
-    <tr><th>Name</th><th>Room</th><th>Status</th><th>Action</th></tr>
+    <tr><th>Name</th><th>Room</th><th>Status</th><th>Action</th><th>Token</th></tr>
   </thead>
   <tbody>
     {% for lamp in lamps %}
     <tr data-token="{{ lamp.token }}" id="lamp-{{ lamp.id }}">
       <td>{{ lamp.name }}</td>
       <td>{{ lamp.room.name }}</td>
-      <td class="status">{{ lamp.status }}</td>
-      <td>
+      <td class="status">{% if lamp.status %} ON {% else %} OFF {% endif %}</td>
+            <td>
         <label>
           <input type="checkbox" class="toggle-checkbox" {% if lamp.status %}checked{% endif %} />
-          <span class="vis">On</span>
+          <!-- <span class="vis">On</span> -->
         </label>
       </td>
+      <td >{{ lamp.token }}</td>
+      
+
     </tr>
     {% empty %}
     <tr><td colspan="4">No lamps found</td></tr>

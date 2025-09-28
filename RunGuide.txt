@@ -1,0 +1,2 @@
+python manage.py runserver (in one shell)
+python manage.py run_mqtt (in another shell)

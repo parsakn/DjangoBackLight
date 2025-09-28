@@ -32,11 +32,13 @@ class LampForm(forms.ModelForm):
         model = Lamp
         fields = ['name', 'room', 'status']
     def __init__(self, *args, **kwargs):
-        user = kwargs.pop('user', None)  
+        #LampForm(data=request.POST, user=request.user)
+        user = kwargs.pop('user', None) # we requier LampForm to get a user in addition 
         super().__init__(*args, **kwargs)
 
         if user is not None:
             self.fields['room'].queryset = Room.objects.filter(home__owner=user)
+            # modifiy dropdown of room to only room allowed if room owned by user
 
 class LampSchedulForm(forms.ModelForm):
     class Meta:
