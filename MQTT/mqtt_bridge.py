@@ -68,6 +68,8 @@ def start_bridge(broker: Optional[str] = None, port: Optional[int] = None, on_me
                     "token": str(lamp.token),
                     "status": bool(lamp.status),
                     "raw": payload,
+                    "establish": False,
+                    "room": getattr(lamp.room, 'name', None),
                 }
                 for target in targets:
                     async_to_sync(channel_layer.group_send)(
@@ -87,10 +89,12 @@ def start_bridge(broker: Optional[str] = None, port: Optional[int] = None, on_me
                     "token": str(lamp.token),
                     "status": bool(lamp.status),
                     "raw": payload,
+                    "establish": True,
+                    "room": getattr(lamp.room, 'name', None),
                 }
                 for target in targets:
                     async_to_sync(channel_layer.group_send)(
-                        f"user_{target.id}", {"type": "lamp.status", "text": data}
+                        f"user_{target.id}", {"type": "lamp.connection", "text": data}
                     )
                 print("Bridge: updated Lamp and broadcasted to groups", flush=True)
         

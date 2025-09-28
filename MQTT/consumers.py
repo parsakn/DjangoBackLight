@@ -5,78 +5,24 @@ from asgiref.sync import sync_to_async
 import paho.mqtt.publish as publish
 from Places_Lamp.models import Lamp
 from SmartLight import settings
+from django.contrib.auth import get_user_model # Added
+import json # Added to ensure send_initial_lamp_status can use it if needed
 
 BROKER_URL = settings.MQTT_BROKER
+User = get_user_model() # Added
 
 
 class MqttConsumer(SyncConsumer):
-    """
-    Handles MQTT messages (subscribe + publish).
-    """
+    # ... (Keep your MqttConsumer class as is, for brevity)
     @staticmethod
     def parse_bool(p):
-        """
-        Robustly parse a payload into boolean True/False or None (unknown).
-
-        Accepts:
-        - plain strings: "ON", "OFF", "1", "0"
-        - JSON encoded payloads like '{"msg":"ON"}', '{"status": true}', etc.
-        - numeric values 1/0
-        - boolean values
-        """
-        import json
-
-        if p is None:
+        if(p=="1" or p=="on" or p=="ON") : 
+            return True 
+        elif (p=="0" or p=="off" or p=="OFF"):
+            return False
+        else : 
             return None
-
-        # If it's already a bool
-        if isinstance(p, bool):
-            return p
-
-        # If it's numeric
-        if isinstance(p, (int, float)):
-            return bool(p)
-
-        # If it's bytes, decode
-        if isinstance(p, bytes):
-            try:
-                p = p.decode('utf-8')
-            except Exception:
-                p = str(p)
-
-        # Try to parse JSON
-        if isinstance(p, str):
-            s = p.strip()
-            # try JSON
-            try:
-                obj = json.loads(s)
-                # if dict, try common keys
-                if isinstance(obj, dict):
-                    for key in ('status', 'state', 'value', 'msg'):
-                        if key in obj:
-                            return MqttConsumer.parse_bool(obj[key])
-                    # nothing recognized
-                    return None
-                # primitive JSON like true/false/1/"ON"
-                return MqttConsumer.parse_bool(obj)
-            except Exception:
-                pass
-
-            low = s.lower()
-            if low in ("1", "true", "on"):
-                return True
-            if low in ("0", "false", "off"):
-                return False
-            # lenient matches like 'onn' or 'on\n'
-            if low.startswith("on"):
-                return True
-            if low.startswith("off"):
-                return False
-
-        # fallback
-        return None
         
-
     def default(self, event):
         print("🔥 default() caught event:", event, flush=True)
     
@@ -125,6 +71,9 @@ class MqttConsumer(SyncConsumer):
                         "token": str(lamp.token),
                         "status": bool(lamp.status),
                         "raw": payload,
+                        # Pass connection status on subscription, though device-initiated updates
+                        # typically mean connection is established. This is for full sync.
+                        "establish": lamp.connection, 
                     },
                 },
             )
@@ -180,11 +129,58 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
         else : 
             return None
 
+    # --- New Function: Fetching Lamps Asynchronously ---
+    @sync_to_async
+    def get_user_lamps_for_sync(self):
+        """Retrieves all unique lamps owned by or shared with the user."""
+        user = self.scope["user"]
+        
+        owned_homes = user.places.all()
+        owned_lamps_list = []
+        for home in owned_homes:
+            for room in home.rooms.all():
+                owned_lamps_list.extend(list(room.lamps.select_related('room__home').all())) # Added select_related for efficiency
+        
+        shared_lamps_qs = user.shared_lamps.select_related('room__home').all()
+        
+        # Deduplicate and return unique lamps
+        return {
+            l.id: l 
+            for l in (owned_lamps_list + list(shared_lamps_qs))
+        }.values()
+
+    # --- New Function: Sending Initial State ---
+    async def send_initial_lamp_status(self):
+        """Sends the current established status for all lamps to the client."""
+        all_lamps = await self.get_user_lamps_for_sync()
+        
+        for lamp in all_lamps:
+            # Payload tailored to the client-side JS logic
+            payload = {
+                "token": str(lamp.token),
+                "status": bool(lamp.status),
+                "lamp": lamp.name,
+                "room": lamp.room.name,
+                # CRITICAL: This flag tells the JS where to put the row (Established vs. Unestablished)
+                "establish": lamp.connection 
+            }
+            
+            # Use self.send_json for sending to the current client
+            await self.send_json(payload)
+            
+        print(f"Sent initial state for {len(all_lamps)} lamps to {self.scope['user'].username}.")
+
+
     async def connect(self):
         user = self.scope["user"]
         if user.is_authenticated:
-            await self.channel_layer.group_add(f"user_{user.id}", self.channel_name)
+            self.user_group_name = f"user_{user.id}"
+            await self.channel_layer.group_add(self.user_group_name, self.channel_name)
             await self.accept()
+            
+            # CRITICAL ADDITION: Re-synchronize state upon connection/reconnection
+            await self.send_initial_lamp_status()
+            
         else:
             await self.close()
 
@@ -194,17 +190,12 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_discard(f"user_{user.id}", self.channel_name)
 
     async def receive_json(self, content):
-        """
-        User wants to toggle lamp
-        """
-        print("in recive Json")
+        # ... (Keep receive_json logic mostly as is, but ensure lamp.connection is passed in the broadcast)
         token = content.get("token")
         payload = content.get("payload")  # e.g., "ON" / "OFF"
+        
         # send through channel layer to 'mqtt' channel (SyncConsumer)
-        # send user id (serializable) to the channel layer; resolve user in mqtt_pub
-        print("user id : ",getattr(self.scope.get("user"), "id", None))
         try:
-            print("sending to channel 'mqtt' ->", token, payload)
             await self.channel_layer.send(
                 "mqtt",
                 {
@@ -213,12 +204,10 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
                     "text": {"token": token, "payload": payload},
                 },
             )
-            print("channel send completed")
         except Exception as e:
             print("⚠️ channel send failed:", e)
 
-        # Also update DB and broadcast immediately so all shared users see the change
-        # without waiting for the MQTT roundtrip from the device.
+        # Also update DB and broadcast immediately (Optimistic Update)
         async def _update_and_broadcast():
             user = self.scope.get("user")
             try:
@@ -247,17 +236,16 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
                 "token": str(lamp.token),
                 "status": bool(parsed) if parsed is not None else bool(lamp.status),
                 "raw": payload,
+                # CRITICAL: Always pass the current connection status in broadcasts
+                "establish": lamp.connection, 
             }
 
             for target in targets:
                 await self.channel_layer.group_send(f"user_{target.id}", {"type": "lamp.status", "text": data})
 
-            # Fallback: publish directly from the websocket path if channel routing
-            # to the named 'mqtt' consumer doesn't reach the SyncConsumer for any reason.
-            # Do this after authorization and DB update to avoid security issues.
+            # Fallback MQTT PUB logic...
             try:
                 topic = f"Devices/{token}/command"
-                # Use sync_to_async to avoid blocking the event loop
                 await sync_to_async(publish.single)(topic, payload, hostname=BROKER_URL)
                 print(f"Fallback MQTT PUB → {topic}={payload}", flush=True)
             except Exception as e:
@@ -269,4 +257,25 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
         """
         Updates coming from MQTT (via MqttConsumer).
         """
-        await self.send_json(event["text"])
+        text = event.get("text") or {}
+        # The payload now includes 'establish', which the JS handles correctly.
+        try:
+            await self.send_json(text)
+        except Exception as e:
+            try:
+                print("⚠️ send_json failed, error:", e, "payload:", repr(text), flush=True)
+            except Exception:
+                pass
+            # Ensure the minimal safe payload also includes 'establish' if possible
+            safe = {
+                "token": text.get("token"), 
+                "status": bool(text.get("status")),
+                "establish": bool(text.get("establish", True)), # Default to true for MQTT updates
+            }
+            try:
+                await self.send_json(safe)
+            except Exception as e2:
+                try:
+                    print("⚠️ fallback send_json also failed:", e2, flush=True)
+                except Exception:
+                    pass

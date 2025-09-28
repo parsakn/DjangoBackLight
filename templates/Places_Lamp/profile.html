@@ -96,8 +96,11 @@
         const data = JSON.parse(e.data);
         console.log("⬅️ WS message:", data);
 
-        // If the payload signals establishment, move the row to established table
-        if (data.raw && data.raw.establish) {
+        // Determine establishment flag (prefer top-level field)
+        const isEstablish = (data.establish === true) || (data.raw && data.raw.establish);
+        const isUnestablish = (data.establish === false) || (data.raw && data.raw.establish === false);
+
+        if (isEstablish) {
           // find existing unestablished row
           const unRow = document.querySelector(`#unestablished-table tr[data-token="${data.token}"]`)
           let row = unRow;
@@ -121,6 +124,31 @@
               const actionCell = document.createElement('td');
               actionCell.innerHTML = `<label><input type="checkbox" class="toggle-checkbox" ${data.status? 'checked':''} /></label>`;
               row.insertBefore(actionCell, row.children[3]);
+            }
+          }
+        }
+
+        if (isUnestablish) {
+          // Move row back to unestablished table if present
+          const estRow = document.querySelector(`#established-table tr[data-token="${data.token}"]`)
+          if (estRow) {
+            // remove status and action cells if present
+            const statusCell = estRow.querySelector('.status');
+            if (statusCell) statusCell.remove();
+            const actionCell = estRow.querySelector('.toggle-checkbox');
+            if (actionCell) actionCell.closest('td').remove();
+            // move to unestablished table body
+            const unBody = document.querySelector('#unestablished-table tbody');
+            // ensure row has Name / Room / Token cells
+            // if not, recreate a simple row
+            if (estRow.children.length < 3) {
+              const newRow = document.createElement('tr');
+              newRow.setAttribute('data-token', data.token);
+              newRow.innerHTML = `\n                <td>${data.lamp||''}</td>\n                <td>${data.room||''}</td>\n                <td>${data.token}</td>\n              `;
+              unBody.appendChild(newRow);
+              estRow.remove();
+            } else {
+              unBody.appendChild(estRow);
             }
           }
         }
