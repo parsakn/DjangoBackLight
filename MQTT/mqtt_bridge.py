@@ -44,17 +44,20 @@ def start_bridge(broker: Optional[str] = None, port: Optional[int] = None, on_me
         try:
             token = topic.split("/")[1]
             # interpret simple payloads
-            parsed = None
-            p = payload.get("msg")
-            
+            status , establish = None , None
+            p = payload.get("msg","")
+            e = payload.get("establish","")
             if p in ("1", "on", "ON"):
-                parsed = True
+                status = True
             elif p in ("0", "off", "OFF"):
-                parsed = False
+                status = False
+            if e=="Connected" : 
+                establish=True
             
-            if parsed is not None:
+            
+            if status is not None:
                 lamp = Lamp.objects.get(token=token)
-                lamp.status = parsed
+                lamp.status = status
                 lamp.save(update_fields=["status"])
                 # Broadcast to all authorized users of this lamp
                 targets = [lamp.room.home.owner]
@@ -71,6 +74,26 @@ def start_bridge(broker: Optional[str] = None, port: Optional[int] = None, on_me
                         f"user_{target.id}", {"type": "lamp.status", "text": data}
                     )
                 print("Bridge: updated Lamp and broadcasted to groups", flush=True)
+            elif establish is not None : 
+                lamp = Lamp.objects.get(token=token)
+                lamp.connection = establish
+                lamp.save(update_fields=["connection"])
+                # Broadcast to all authorized users of this lamp
+                targets = [lamp.room.home.owner]
+                targets += list(lamp.shared_with.all())
+                targets += list(lamp.room.home.shared_with.all())
+                data = {
+                    "lamp": lamp.name,
+                    "token": str(lamp.token),
+                    "status": bool(lamp.status),
+                    "raw": payload,
+                }
+                for target in targets:
+                    async_to_sync(channel_layer.group_send)(
+                        f"user_{target.id}", {"type": "lamp.status", "text": data}
+                    )
+                print("Bridge: updated Lamp and broadcasted to groups", flush=True)
+        
         except Exception as _e:
             # Non-fatal: continue to also send the raw message into the channel layer
             print("Bridge: failed direct DB update/broadcast:", _e , flush=True)

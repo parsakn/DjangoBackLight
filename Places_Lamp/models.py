@@ -39,6 +39,7 @@ class Lamp(models.Model):
     """
     name = models.CharField(max_length=255 , blank=True , unique=True)
     status = models.BooleanField(default=False)  # True = on, False = off
+    connection = models.BooleanField(default=False) # connection is false until we recive msg ESP connected
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='lamps')
     shared_with = models.ManyToManyField(
         settings.AUTH_USER_MODEL,

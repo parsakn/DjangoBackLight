@@ -74,8 +74,14 @@ class Profile(LoginRequiredMixin, View) :
         shared_lamps = request.user.shared_lamps.all()
 
         # combine and deduplicate by id
-        lamps = {l.id: l for l in (owned_lamps + list(shared_lamps))}.values()
-
-        return render(request, self.template_name, {"lamps": lamps})
+        # lamps = {l.id: l for l in (owned_lamps + list(shared_lamps))}.values()
+        established_lamps , unestablished_lamps = [] , []
+        for lamp in (owned_lamps+list(shared_lamps)) : 
+            if lamp.connection == True : 
+                established_lamps.append(lamp)
+            else : 
+                unestablished_lamps.append(lamp)
+        
+        return render(request, self.template_name, {"established_lamps": established_lamps , "unestablished_lamps" : unestablished_lamps})
 
 

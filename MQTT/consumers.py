@@ -15,12 +15,66 @@ class MqttConsumer(SyncConsumer):
     """
     @staticmethod
     def parse_bool(p):
-        if(p=="1" or p=="on" or p=="ON") : 
-            return True 
-        elif (p=="0" or p=="off" or p=="OFF"):
-            return False
-        else : 
+        """
+        Robustly parse a payload into boolean True/False or None (unknown).
+
+        Accepts:
+        - plain strings: "ON", "OFF", "1", "0"
+        - JSON encoded payloads like '{"msg":"ON"}', '{"status": true}', etc.
+        - numeric values 1/0
+        - boolean values
+        """
+        import json
+
+        if p is None:
             return None
+
+        # If it's already a bool
+        if isinstance(p, bool):
+            return p
+
+        # If it's numeric
+        if isinstance(p, (int, float)):
+            return bool(p)
+
+        # If it's bytes, decode
+        if isinstance(p, bytes):
+            try:
+                p = p.decode('utf-8')
+            except Exception:
+                p = str(p)
+
+        # Try to parse JSON
+        if isinstance(p, str):
+            s = p.strip()
+            # try JSON
+            try:
+                obj = json.loads(s)
+                # if dict, try common keys
+                if isinstance(obj, dict):
+                    for key in ('status', 'state', 'value', 'msg'):
+                        if key in obj:
+                            return MqttConsumer.parse_bool(obj[key])
+                    # nothing recognized
+                    return None
+                # primitive JSON like true/false/1/"ON"
+                return MqttConsumer.parse_bool(obj)
+            except Exception:
+                pass
+
+            low = s.lower()
+            if low in ("1", "true", "on"):
+                return True
+            if low in ("0", "false", "off"):
+                return False
+            # lenient matches like 'onn' or 'on\n'
+            if low.startswith("on"):
+                return True
+            if low.startswith("off"):
+                return False
+
+        # fallback
+        return None
         
 
     def default(self, event):

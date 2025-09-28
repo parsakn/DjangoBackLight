@@ -1,11 +1,39 @@
 
 <h1>Your Lamps</h1>
-<table id="lamps-table">
+
+<h2>Unestablished connection</h2>
+<table id="unestablished-table">
+  {% if unestablished_lamps|length %}
+  <thead>
+    <tr><th>Name</th><th>Room</th><th>Token</th></tr>
+  </thead>
+  {% endif %}
+  <tbody>
+    {% for lamp in unestablished_lamps %}
+    
+    <tr data-token="{{ lamp.token }}" id="lamp-{{ lamp.id }}">
+      <td>{{ lamp.name }}</td>
+      <td>{{ lamp.room.name }}</td>
+      <td >{{ lamp.token }}</td>
+      
+
+    </tr>
+    
+    {% empty %}
+    <tr><td colspan="4">No Unstablished lamps found</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<h2>Established connection</h2>
+<table id="established-table">
+  {% if established_lamps|length  %}
   <thead>
     <tr><th>Name</th><th>Room</th><th>Status</th><th>Action</th><th>Token</th></tr>
   </thead>
+  {% endif %}
   <tbody>
-    {% for lamp in lamps %}
+    {% for lamp in established_lamps %}
+    
     <tr data-token="{{ lamp.token }}" id="lamp-{{ lamp.id }}">
       <td>{{ lamp.name }}</td>
       <td>{{ lamp.room.name }}</td>
@@ -13,15 +41,15 @@
             <td>
         <label>
           <input type="checkbox" class="toggle-checkbox" {% if lamp.status %}checked{% endif %} />
-          <!-- <span class="vis">On</span> -->
         </label>
       </td>
       <td >{{ lamp.token }}</td>
       
 
     </tr>
+    
     {% empty %}
-    <tr><td colspan="4">No lamps found</td></tr>
+    <tr><td colspan="4">No Established lamps found</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -67,7 +95,38 @@
       try {
         const data = JSON.parse(e.data);
         console.log("⬅️ WS message:", data);
-        const rows = document.querySelectorAll(`[data-token="${data.token}"]`);
+
+        // If the payload signals establishment, move the row to established table
+        if (data.raw && data.raw.establish) {
+          // find existing unestablished row
+          const unRow = document.querySelector(`#unestablished-table tr[data-token="${data.token}"]`)
+          let row = unRow;
+          if (!row) {
+            // create a new row if not present
+            const tbl = document.querySelector('#established-table tbody');
+            row = document.createElement('tr');
+            row.setAttribute('data-token', data.token);
+            row.innerHTML = `\n              <td>${data.lamp||''}</td>\n              <td>${data.room||''}</td>\n              <td class="status">${data.status? 'On':'Off'}</td>\n              <td><label><input type="checkbox" class="toggle-checkbox" ${data.status? 'checked':''} /></label></td>\n              <td>${data.token}</td>\n            `;
+            tbl.appendChild(row);
+          } else {
+            // move row into established table
+            const estBody = document.querySelector('#established-table tbody');
+            estBody.appendChild(row);
+            // add status cell and checkbox if missing
+            if (!row.querySelector('.status')) {
+              const statusCell = document.createElement('td');
+              statusCell.className = 'status';
+              statusCell.textContent = data.status ? 'On' : 'Off';
+              row.insertBefore(statusCell, row.children[2]);
+              const actionCell = document.createElement('td');
+              actionCell.innerHTML = `<label><input type="checkbox" class="toggle-checkbox" ${data.status? 'checked':''} /></label>`;
+              row.insertBefore(actionCell, row.children[3]);
+            }
+          }
+        }
+
+        // update status for any matching row in established table
+        const rows = document.querySelectorAll(`#established-table tr[data-token="${data.token}"]`);
         rows.forEach(r => {
           const statusCell = r.querySelector(".status");
           if (statusCell) statusCell.textContent = data.status ? "On" : "Off";
