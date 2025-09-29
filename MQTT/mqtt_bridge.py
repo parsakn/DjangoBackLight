@@ -68,7 +68,7 @@ def start_bridge(broker: Optional[str] = None, port: Optional[int] = None, on_me
                     "token": str(lamp.token),
                     "status": bool(lamp.status),
                     "raw": payload,
-                    "establish": False,
+                    # "establish": False,
                     "room": getattr(lamp.room, 'name', None),
                 }
                 for target in targets:

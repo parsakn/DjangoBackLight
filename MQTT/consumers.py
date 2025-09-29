@@ -86,7 +86,8 @@ class MqttConsumer(SyncConsumer):
         user_id = event.get("user")  # user id passed from WebSocket consumer
         token = event['text']['token']
         payload = event['text']['payload']
-
+        dict_payload = {"msg":payload}
+        json_payload = json.dumps(dict_payload)
         try:
             lamp = Lamp.objects.get(token=token)
         except Lamp.DoesNotExist:
@@ -110,7 +111,7 @@ class MqttConsumer(SyncConsumer):
             return
 
         topic = f"Devices/{token}/command"
-        print(f"MQTT PUB → {user.username} → {topic}={payload}", flush=True)
+        print(f"MQTT PUB → {user.username} → {topic}={json_payload}", flush=True)
 
         try:
             publish.single(topic, payload, hostname=BROKER_URL)
@@ -239,6 +240,8 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
                 # CRITICAL: Always pass the current connection status in broadcasts
                 "establish": lamp.connection, 
             }
+            dict_payload = {"msg":payload}
+            json_payload = json.dumps(dict_payload)
 
             for target in targets:
                 await self.channel_layer.group_send(f"user_{target.id}", {"type": "lamp.status", "text": data})
@@ -247,7 +250,7 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
             try:
                 topic = f"Devices/{token}/command"
                 await sync_to_async(publish.single)(topic, payload, hostname=BROKER_URL)
-                print(f"Fallback MQTT PUB → {topic}={payload}", flush=True)
+                print(f"Fallback MQTT PUB → {topic}={json_payload}", flush=True)
             except Exception as e:
                 print("⚠️ Fallback MQTT publish failed:", e, flush=True)
 
