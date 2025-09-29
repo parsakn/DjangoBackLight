@@ -63,25 +63,35 @@ class Profile(LoginRequiredMixin, View) :
     template_name = 'Places_Lamp/profile.html'
 
     def get(self, request):
-        # lamps owned by user's homes
+        # 1. Collect all owned lamps
         owned_homes = request.user.places.all()
-        owned_lamps = []
+        owned_lamps_list = []
         for home in owned_homes:
             for room in home.rooms.all():
-                owned_lamps.extend(list(room.lamps.all()))
+                # Use select_related() to minimize database queries for related objects
+                owned_lamps_list.extend(list(room.lamps.select_related('room__home').all()))
 
-        # lamps shared with user
-        shared_lamps = request.user.shared_lamps.all()
+        # 2. Collect all shared lamps (QuerySet)
+        shared_lamps_qs = request.user.shared_lamps.select_related('room__home').all()
 
-        # combine and deduplicate by id
-        # lamps = {l.id: l for l in (owned_lamps + list(shared_lamps))}.values()
-        established_lamps , unestablished_lamps = [] , []
-        for lamp in (owned_lamps+list(shared_lamps)) : 
-            if lamp.connection == True : 
+        # 3. COMBINE AND DEDUPLICATE: Use a dictionary comprehension with the lamp's ID as the key.
+        # This is the crucial fix for uniqueness.
+        all_lamps_unique = {
+            lamp.id: lamp 
+            for lamp in (owned_lamps_list + list(shared_lamps_qs))
+        }.values()
+
+        # 4. Separate into established and unestablished lists
+        established_lamps = []
+        unestablished_lamps = []
+        
+        for lamp in all_lamps_unique : 
+            if lamp.connection is True : 
                 established_lamps.append(lamp)
             else : 
                 unestablished_lamps.append(lamp)
         
-        return render(request, self.template_name, {"established_lamps": established_lamps , "unestablished_lamps" : unestablished_lamps})
-
-
+        return render(request, self.template_name, {
+            "established_lamps": established_lamps, 
+            "unestablished_lamps" : unestablished_lamps
+        })

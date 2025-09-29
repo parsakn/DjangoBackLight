@@ -101,17 +101,16 @@
         const isUnestablish = (data.establish === false) || (data.raw && data.raw.establish === false);
 
         if (isEstablish) {
-          // find existing unestablished row
-          const unRow = document.querySelector(`#unestablished-table tr[data-token="${data.token}"]`)
-          let row = unRow;
-          if (!row) {
-            // create a new row if not present
-            const tbl = document.querySelector('#established-table tbody');
-            row = document.createElement('tr');
-            row.setAttribute('data-token', data.token);
-            row.innerHTML = `\n              <td>${data.lamp||''}</td>\n              <td>${data.room||''}</td>\n              <td class="status">${data.status? 'On':'Off'}</td>\n              <td><label><input type="checkbox" class="toggle-checkbox" ${data.status? 'checked':''} /></label></td>\n              <td>${data.token}</td>\n            `;
-            tbl.appendChild(row);
-          } else {
+  // ...
+  const unRow = document.querySelector(`#unestablished-table tr[data-token="${data.token}"]`)
+  let row = unRow;
+  if (!row) { // If the row isn't unestablished (meaning it's already established)...
+    // ... it creates a brand new row! <-- THIS CAUSES DUPLICATION
+    const tbl = document.querySelector('#established-table tbody');
+    row = document.createElement('tr');
+    // ...
+    tbl.appendChild(row);
+  } else {
             // move row into established table
             const estBody = document.querySelector('#established-table tbody');
             estBody.appendChild(row);
