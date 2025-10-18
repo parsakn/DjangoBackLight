@@ -33,7 +33,7 @@ class SignIn(View):
             user = form.get_user()
             login(request, user)
             messages.success(request , "Success Signin")
-            return redirect('home')
+            return redirect('profile')
         else : 
             messages.error(request , "Failure Signin")
             return render(request, 'User/login.html', {'form': form})
