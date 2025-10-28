@@ -15,7 +15,7 @@
       <td>{{ lamp.name }}</td>
       <td>{{ lamp.room.name }}</td>
       <td >{{ lamp.token }}</td>
-      
+      <td><button class="delete-btn1">🗑️ Delete</button></td>
 
     </tr>
     
@@ -44,7 +44,7 @@
         </label>
       </td>
       <td >{{ lamp.token }}</td>
-      
+       <td><button class="delete-btn">🗑️ Delete</button></td>
 
     </tr>
     
@@ -191,5 +191,25 @@
     if (statusCell) statusCell.textContent = ev.target.checked ? "On" : "Off";
   });
 
+  // Delete button handler: send DEL over websocket and remove row optimistically
+  document.addEventListener("click", (ev) => {
+    if (!ev.target.matches('.delete-btn')) return;
+    const row = ev.target.closest('tr');
+    if (!row) return;
+    const token = row.getAttribute('data-token');
+
+    const msg = { token, payload: 'DEL' };
+    console.log('➡️ Sending DEL via WS:', msg);
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(msg));
+      // optimistic removal
+      row.remove();
+    } else {
+      console.warn('WS not open - cannot send DEL');
+    }
+  });
+
 })();
+
+
 </script>

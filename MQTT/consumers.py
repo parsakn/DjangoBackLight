@@ -7,7 +7,7 @@ from Places_Lamp.models import Lamp
 from SmartLight import settings
 from django.contrib.auth import get_user_model # Added
 import json # Added to ensure send_initial_lamp_status can use it if needed
-
+from channels.layers import get_channel_layer
 BROKER_URL = settings.MQTT_BROKER
 User = get_user_model() # Added
 
@@ -83,7 +83,8 @@ class MqttConsumer(SyncConsumer):
         Publish only if the requesting user is authorized.
         """
         print("in mqtt publish", flush=True)
-        user_id = event.get("user")  # user id passed from WebSocket consumer
+        # User id may be passed at top-level 'user' or nested in text as 'user_id' depending on sender
+        user_id = event.get("user") or (event.get("text") or {}).get("user_id") or (event.get("text") or {}).get("user")
         token = event['text']['token']
         payload = event['text']['payload']
         dict_payload = {"msg":payload}
@@ -193,7 +194,69 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
     async def receive_json(self, content):
         # ... (Keep receive_json logic mostly as is, but ensure lamp.connection is passed in the broadcast)
         token = content.get("token")
-        payload = content.get("payload")  # e.g., "ON" / "OFF"
+        payload = content.get("payload") 
+        user = self.scope.get("user")
+        if payload == "DEL":
+            # Option A: send to MQTT to notify device
+            channel_layer = get_channel_layer()
+            # send to mqtt channel with top-level user id for mqtt_pub resolver
+            # use await since we're in async context
+            await channel_layer.send(
+                "mqtt",
+                {
+                    "type": "mqtt.pub",
+                    "user": getattr(user, 'id', None),
+                    "text": {"token": str(token), "payload": "DEL"},
+                },
+            )
+            # Optionally: delete the lamp in DB (after notifying device) or mark removed
+            # lamp.delete()
+            # or lamp.delete() only after device confirms
+            # Broadcast to other users that lamp was deleted:
+            # Broadcast deletion to all authorized users of this lamp
+            # Gather targets and lamp metadata in a sync function to avoid
+            # accessing Django ORM relations from the async event loop.
+            def _gather_targets(tkn):
+                l = Lamp.objects.select_related('room__home').get(token=tkn)
+                owner = l.room.home.owner
+                shared_ids = list(l.shared_with.values_list('id', flat=True))
+                home_shared_ids = list(l.room.home.shared_with.values_list('id', flat=True))
+                return {
+                    'owner_id': owner.id,
+                    'shared_ids': shared_ids,
+                    'home_shared_ids': home_shared_ids,
+                    'lamp_name': l.name,
+                }
+
+            try:
+                info = await sync_to_async(_gather_targets)(token)
+            except Exception:
+                # If lamp cannot be found, at least notify the requester
+                await self.channel_layer.group_send(
+                    f"user_{getattr(user,'id',None)}",
+                    {"type": "lamp.status", "text": {"token": str(token), "status": False, "deleted": True}},
+                )
+                return
+
+            target_ids = [info['owner_id']] + info['shared_ids'] + info['home_shared_ids']
+            # de-duplicate ids
+            target_ids = list(dict.fromkeys(target_ids))
+
+            for uid in target_ids:
+                await self.channel_layer.group_send(
+                    f"user_{uid}",
+                    {"type": "lamp.status", "text": {"token": str(token), "status": False, "deleted": True}},
+                )
+            # Immediately delete the lamp from the database (destructive)
+            try:
+                await sync_to_async(Lamp.objects.filter(token=token).delete)()
+                print(f"Lamp with token {token} deleted from DB by user {user.username}", flush=True)
+            except Exception as e:
+                print("⚠️ Failed to delete lamp from DB:", e, flush=True)
+            return
+        
+        
+         # e.g., "ON" / "OFF"
         
         # send through channel layer to 'mqtt' channel (SyncConsumer)
         try:
@@ -211,42 +274,57 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
         # Also update DB and broadcast immediately (Optimistic Update)
         async def _update_and_broadcast():
             user = self.scope.get("user")
-            try:
-                lamp = await sync_to_async(Lamp.objects.get)(token=token)
-            except Lamp.DoesNotExist:
-                return
-
-            # Check authorization
-            can = await sync_to_async(lamp.can_access)(user)
-            if not can:
-                return
-
             parsed = LightConsumer.parse_bool(payload)
-            if parsed is not None:
-                # save status
-                await sync_to_async(lambda: lamp.__class__.objects.filter(pk=lamp.pk).update(status=parsed))()
 
-            # prepare targets: owner, lamp.shared_with, home.shared_with
-            owner = lamp.room.home.owner
-            targets = [owner]
-            targets += list(await sync_to_async(list)(lamp.shared_with.all()))
-            targets += list(await sync_to_async(list)(lamp.room.home.shared_with.all()))
+            # All ORM access happens inside this synchronous helper.
+            def _prepare_and_update(tkn, usr, new_status):
+                try:
+                    l = Lamp.objects.select_related('room__home').get(token=tkn)
+                except Lamp.DoesNotExist:
+                    return None
+
+                if not l.can_access(usr):
+                    return None
+
+                if new_status is not None:
+                    l.__class__.objects.filter(pk=l.pk).update(status=new_status)
+
+                owner = l.room.home.owner
+                shared_ids = list(l.shared_with.values_list('id', flat=True))
+                home_shared_ids = list(l.room.home.shared_with.values_list('id', flat=True))
+
+                return {
+                    'lamp_name': l.name,
+                    'token': str(l.token),
+                    'status': bool(new_status) if new_status is not None else bool(l.status),
+                    'raw': payload,
+                    'establish': l.connection,
+                    'owner_id': owner.id,
+                    'shared_ids': shared_ids,
+                    'home_shared_ids': home_shared_ids,
+                }
+
+            info = await sync_to_async(_prepare_and_update)(token, user, parsed)
+            if not info:
+                return
+
+            target_ids = [info['owner_id']] + info['shared_ids'] + info['home_shared_ids']
+            target_ids = list(dict.fromkeys(target_ids))
 
             data = {
-                "lamp": lamp.name,
-                "token": str(lamp.token),
-                "status": bool(parsed) if parsed is not None else bool(lamp.status),
-                "raw": payload,
-                # CRITICAL: Always pass the current connection status in broadcasts
-                "establish": lamp.connection, 
+                'lamp': info['lamp_name'],
+                'token': info['token'],
+                'status': info['status'],
+                'raw': info['raw'],
+                'establish': info['establish'],
             }
-            dict_payload = {"msg":payload}
+            dict_payload = {"msg": payload}
             json_payload = json.dumps(dict_payload)
 
-            for target in targets:
-                await self.channel_layer.group_send(f"user_{target.id}", {"type": "lamp.status", "text": data})
+            for uid in target_ids:
+                await self.channel_layer.group_send(f"user_{uid}", {"type": "lamp.status", "text": data})
 
-            # Fallback MQTT PUB logic...
+            # Fallback MQTT PUB logic (run in thread)
             try:
                 topic = f"Devices/{token}/command"
                 await sync_to_async(publish.single)(topic, payload, hostname=BROKER_URL)
