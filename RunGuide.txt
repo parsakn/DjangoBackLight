@@ -1,4 +1,7 @@
 first do->  pip install -r requirements.txt
 then ->
-python manage.py runserver (in one shell)
-python manage.py run_mqtt (in another shell)
+source env/bin/activate
+start redis --> sudo service redis-server start
+python3 manage.py runserver (in one shell)
+python3 manage.py run_mqtt (in another shell)
+stop redis --> sudo service redis-server stop
