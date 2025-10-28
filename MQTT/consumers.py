@@ -115,7 +115,16 @@ class MqttConsumer(SyncConsumer):
         print(f"MQTT PUB → {user.username} → {topic}={json_payload}", flush=True)
 
         try:
-            publish.single(topic, payload, hostname=BROKER_URL)
+            # Some devices expect a raw command string (e.g. "DEL"). Others
+            # expect the JSON envelope {"msg":...}. Send raw for DEL and
+            # JSON for everything else to maximize compatibility.
+            if isinstance(payload, str) and payload.strip().upper() == "DEL":
+                payload_to_send = payload
+            else:
+                payload_to_send = json_payload
+
+            publish.single(topic, payload_to_send, hostname=BROKER_URL)
+            print(f"MQTT publish succeeded for topic {topic} payload={payload_to_send}", flush=True)
         except Exception as e:
             # keep consumer resilient and log publish errors
             print("⚠️ MQTT publish failed:", e, flush=True)
@@ -209,6 +218,17 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
                     "text": {"token": str(token), "payload": "DEL"},
                 },
             )
+            # Best-effort direct publish in case the named-channel consumer
+            # isn't available (multi-process channel-layer issues). This
+            # ensures the device sees the DEL command even if the other
+            # process doesn't pick up the 'mqtt' channel message.
+            try:
+                topic = f"Devices/{token}/command"
+                # publish.single is blocking; run it in a thread via sync_to_async
+                await sync_to_async(publish.single)(topic, "DEL", hostname=BROKER_URL)
+                print(f"Direct DEL publish succeeded for topic {topic}", flush=True)
+            except Exception as e:
+                print("⚠️ Direct DEL publish failed:", e, flush=True)
             # Optionally: delete the lamp in DB (after notifying device) or mark removed
             # lamp.delete()
             # or lamp.delete() only after device confirms
