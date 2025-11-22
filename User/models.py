@@ -6,5 +6,6 @@ class CustomeUser (AbstractUser) :
     email = models.EmailField(max_length=128)
     password = models.CharField(max_length=128)
     is_service_provider = models.BooleanField(blank=True , null=True , default=False)
+    phone_number = models.CharField(max_length=20 , unique=True)
 
 

@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     "API",
     "channels",
     "MQTT",
+    'rest_framework.authtoken',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
@@ -140,3 +142,13 @@ LOGIN_URL=""
 # Brocker cridentials
 MQTT_BROKER = "node.lilms.top"
 MQTT_PORT = 1883
+
+
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ]
+}
