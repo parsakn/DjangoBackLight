@@ -1,27 +1,52 @@
 from rest_framework.serializers import ModelSerializer
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
 from .models import * 
 
-class HomeSerializer(ModelSerializer) : 
+class HomePostSerializer(ModelSerializer) : 
+    shared_with = serializers.PrimaryKeyRelatedField(queryset= get_user_model().objects.all() , many = True , required=False)
     class Meta : 
-        models = Home
-        fields = ["name" , "owner" , "shared_with"]
+        model = Home
+        fields = ["id","name", "shared_with"]
 
-class RoomSerializer(ModelSerializer) : 
+
+
+class HomeViewSerializer(ModelSerializer) : 
+    shared_with = serializers.SlugRelatedField(many=True , slug_field = "shared_with" ,read_only=True )
+    owner = serializers.CharField(source="owner.username")
     class Meta : 
-        models = Room
-        fields = ["name" , "home"]
+        model = Home
+        fields = ["id","name","owner", "shared_with"]
+
+class RoomPostSerializer(ModelSerializer) : 
+    home = serializers.PrimaryKeyRelatedField(queryset=Home.objects.all())
+    class Meta : 
+        model = Room
+        fields = ["id","name" , "home"]
+
+class RoomVIewSerializer(ModelSerializer) : 
+    home = serializers.CharField(source = "home.name")
+    class Meta : 
+        model = Room
+        fields = ["id","name" , "home"]
 
 class LampViewSerializer(ModelSerializer) : 
+    room = serializers.CharField(source = "room.name")
+    shared_whith = serializers.SlugRelatedField(many=True , slug_field = "shared_with" ,read_only=True )
     class Meta : 
-        models = Lamp 
+        model = Lamp 
         fields ="__all__"
 
 class LampPostSerializer(ModelSerializer) : 
+    room = serializers.PrimaryKeyRelatedField(queryset=Room.objects.all())
+    shared_with = serializers.PrimaryKeyRelatedField(queryset=get_user_model().objects.all() , many=True , required=False)
     class Meta : 
-        models = Lamp 
-        fields =["name" , "status" , "room" , "shared_with" , ]
+        model = Lamp 
+        fields =["id","name" , "status" , "room" , "shared_with" , ]
 class LampSchedulSerializer(ModelSerializer) : 
     class Meta : 
-        models=LampSchedule 
+        model=LampSchedule 
         fields ="__all__"
+
+
 

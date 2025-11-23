@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
+from datetime import timedelta 
 from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -44,6 +44,8 @@ INSTALLED_APPS = [
     "MQTT",
     'rest_framework.authtoken',
     'rest_framework',
+    "rest_framework_simplejwt",
+
 ]
 
 MIDDLEWARE = [
@@ -151,4 +153,19 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ]
+}
+
+SIMPLE_JWT = {
+    # How long the access token is valid (must be short for security)
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30), 
+    
+    # How long the refresh token is valid (longer for user convenience)
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+
+    # Configuration to ensure tokens are used as Bearer tokens
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    
+    # Optionally allow the use of Blacklisting (recommended)
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
