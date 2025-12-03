@@ -1,0 +1,334 @@
+openapi: 3.0.3
+info:
+  title: SmartLight
+  version: 1.0.0
+  description: Your project description
+paths:
+  /Account/login/:
+    post:
+      operationId: Account_login_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - Account
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /Account/register/:
+    post:
+      operationId: Account_register_create
+      tags:
+      - Account
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/User'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /Account/token/refresh/:
+    post:
+      operationId: Account_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - Account
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /Profile/:
+    get:
+      operationId: Profile_list
+      tags:
+      - Profile
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LampView'
+          description: ''
+  /Profile/add/home:
+    post:
+      operationId: Profile_add_home_create
+      tags:
+      - Profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HomePost'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HomePost'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HomePost'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomePost'
+          description: ''
+  /Profile/add/lamp:
+    post:
+      operationId: Profile_add_lamp_create
+      tags:
+      - Profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LampPost'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LampPost'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LampPost'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LampPost'
+          description: ''
+  /Profile/add/room:
+    post:
+      operationId: Profile_add_room_create
+      tags:
+      - Profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomPost'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RoomPost'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RoomPost'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomPost'
+          description: ''
+components:
+  schemas:
+    HomePost:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 128
+        shared_with:
+          type: array
+          items:
+            type: integer
+      required:
+      - id
+      - name
+    LampPost:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        status:
+          type: boolean
+        room:
+          type: integer
+        shared_with:
+          type: array
+          items:
+            type: integer
+      required:
+      - id
+      - name
+      - room
+    LampView:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        room:
+          type: string
+        shared_with:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        status:
+          type: boolean
+        connection:
+          type: boolean
+        token:
+          type: string
+          format: uuid
+          readOnly: true
+      required:
+      - id
+      - name
+      - room
+      - shared_with
+      - token
+    RoomPost:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        home:
+          type: integer
+      required:
+      - home
+      - id
+    TokenObtainPair:
+      type: object
+      properties:
+        username:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - password
+      - refresh
+      - username
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    User:
+      type: object
+      properties:
+        username:
+          type: string
+          maxLength: 128
+        email:
+          type: string
+          format: email
+          maxLength: 128
+        password:
+          type: string
+          maxLength: 128
+        password2:
+          type: string
+          writeOnly: true
+        phone_number:
+          type: string
+          maxLength: 20
+      required:
+      - email
+      - password
+      - password2
+      - phone_number
+      - username
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

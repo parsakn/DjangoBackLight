@@ -32,7 +32,7 @@ class RoomVIewSerializer(ModelSerializer) :
 
 class LampViewSerializer(ModelSerializer) : 
     room = serializers.CharField(source = "room.name")
-    shared_whith = serializers.SlugRelatedField(many=True , slug_field = "shared_with" ,read_only=True )
+    shared_with = serializers.SlugRelatedField(many=True , slug_field = "username" ,read_only=True )
     class Meta : 
         model = Lamp 
         fields ="__all__"
