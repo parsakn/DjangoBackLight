@@ -40,14 +40,20 @@ class LampView(ListAPIView) :
     serializer_class = LampViewSerializer
 
 class LampCreate(CreateAPIView) : 
-    def get_queryset(self):
-        user = self.request.user
-        return Lamp.objects.filter(owner = user)
+    queryset = Lamp.objects.all()
     permission_classes = [IsAuthenticated]
     serializer_class = LampPostSerializer
 
-class LampSchedul(ListCreateAPIView) : 
-    queryset = LampSchedule.objects.all()
-    permission_classes = [IsAuthenticated]
-    serializer_class = LampSchedulSerializer
+class LampPostSchedul(CreateAPIView) : 
 
+    queryset = LampSchedul.objects.all()
+    permission_classes = [IsAuthenticated]
+    serializer_class = LampPostSchedulSerializer
+
+
+class LampViewSchedul(ListAPIView) : 
+    def get_queryset(self):
+        user = self.request.user
+        return LampSchedul.objects.filter(user_schedul__owner=user)
+    permission_classes = [IsAuthenticated]
+    serializer_class = LampViewSchedulSerializer

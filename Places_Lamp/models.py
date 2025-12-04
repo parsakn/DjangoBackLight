@@ -67,11 +67,9 @@ class Lamp(models.Model):
         )
 
 
-class LampSchedule(models.Model):
-    """
-    LampSchedule model - represents automated schedules for lamps
-    """
-    lamp = models.ForeignKey(Lamp, on_delete=models.CASCADE, related_name='schedules')
+class UserSchedule(models.Model):
+
+    owner = models.ForeignKey(get_user_model() , models.CASCADE)
     on_time = models.DateTimeField()
     off_time = models.DateTimeField()
     
@@ -81,5 +79,12 @@ class LampSchedule(models.Model):
         from django.core.exceptions import ValidationError
         if self.on_time and self.off_time and self.on_time >= self.off_time:
             raise ValidationError("Off time must be after on time")
+        
+
+class LampSchedul(models.Model) : 
+    lamp = models.ForeignKey(Lamp , models.CASCADE)
+    user_schedul = models.ForeignKey(UserSchedule , models.CASCADE)
+
+
 
 
