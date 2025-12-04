@@ -1,5 +1,5 @@
 from django import forms
-from .models import Home, Room, Lamp  , LampSchedule
+from .models import Home, Room, Lamp  , LampSchedul
 from django.forms import DateTimeInput
 
 class HomeForm(forms.ModelForm):
@@ -72,7 +72,7 @@ class LampForm(forms.ModelForm):
 
 class LampSchedulForm(forms.ModelForm):
     class Meta:
-        model = LampSchedule
+        model = LampSchedul
         fields ="__all__"
         widgets = {
             'on_time': DateTimeInput(attrs={'type': 'datetime-local'}),

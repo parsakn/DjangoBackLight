@@ -1,19 +1,22 @@
 from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
-from rest_framework import viewsets
 from django.contrib.auth import get_user_model
 from .models import * 
+from django.db.models import Q
+from drf_spectacular.utils import extend_schema_field
+
+@extend_schema_field(serializers.IntegerField)
 class UsernameToPkField(serializers.Field) : 
     # the data is just string that determin the username
     def to_internal_value(self, data):
         try : 
-            user = get_user_model().objects.filter(username = data)
+            user = get_user_model().objects.get(username = data)
             return user.id
         except : 
             raise serializers.ValidationError("user with specified user name does not exist")
 
 class HomePostSerializer(ModelSerializer) : 
-    shared_with_id = serializers.ListField(write_only=True , child = UsernameToPkField, required=False)
+    shared_with_id = serializers.ListField(write_only=True , child = UsernameToPkField(), required=False)
     class Meta : 
         model = Home
         fields = ["id","name", "shared_with_id"]
@@ -21,7 +24,7 @@ class HomePostSerializer(ModelSerializer) :
 
 
 class HomeViewSerializer(ModelSerializer) : 
-    shared_with = serializers.SlugRelatedField(many=True , slug_field = "shared_with" ,read_only=True )
+    shared_with = serializers.SlugRelatedField(many=True , slug_field = "username" ,read_only=True )
     owner_username = serializers.CharField(source="owner.username" , read_only=True)
     class Meta : 
         model = Home
@@ -32,6 +35,13 @@ class RoomPostSerializer(ModelSerializer) :
     class Meta : 
         model = Room
         fields = ["id","name" , "home"]
+    def __init__(self , *args , **kwargs) :
+        super().__init__(self , *args , **kwargs) 
+        
+        request = self.context["request"]
+        if (request and request.user.is_authenticated) : 
+            user = request.user
+            self.fields["home"].queryset = Home.objects.filter(owner=user)
 
 class RoomVIewSerializer(ModelSerializer) : 
     home = serializers.CharField(source = "home.name")
@@ -51,10 +61,19 @@ class LampViewSerializer(ModelSerializer) :
 
 class LampPostSerializer(ModelSerializer) : 
     room = serializers.PrimaryKeyRelatedField(queryset=Room.objects.all(),write_only=True)
-    shared_with_id = serializers.ListField(write_only=True , child = UsernameToPkField, required=False)
+    shared_with_id = serializers.ListField(write_only=True , child = UsernameToPkField(), required=False)
     class Meta : 
         model = Lamp 
         fields =["id","name" , "status" , "room" ,"shared_with_id" ]
+
+    def __init__(self , *args , **kwargs) :
+        super().__init__(self , *args , **kwargs) 
+        
+        request = self.context["request"]
+        if (request and request.user.is_authenticated) : 
+            user = request.user
+            self.fields["room"].queryset = Room.objects.filter(home__owner=user)
+    
 
 
 class LampPostSchedulSerializer(ModelSerializer) : 
@@ -63,6 +82,18 @@ class LampPostSchedulSerializer(ModelSerializer) :
     class Meta : 
         model=LampSchedul 
         fields ="__all__"
+    def __init__(self , *args , **kwargs) :
+        super().__init__(self , *args , **kwargs) 
+        
+        request = self.context["request"]
+        if (request and request.user.is_authenticated) : 
+            user = request.user
+            self.fields["user_schedul"].queryset = UserSchedule.objects.filter(owner=user)
+            self.fields["lamp"].queryset = Lamp.objects.filter(
+                Q(room__home__owner=user) | 
+                Q(shared_with = user)
+            ).distinct()
+
 
 class LampViewSchedulSerializer(ModelSerializer) : 
     class Meta : 
