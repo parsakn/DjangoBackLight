@@ -106,5 +106,5 @@ class UserSchedulPost(ModelSerializer) :
         fields = ["id" , "on_time" , "off_time"]
 class UserSchedulView(ModelSerializer) : 
     class Meta : 
-        models = UserSchedule
+        model = UserSchedule
         fields = "__all__"
