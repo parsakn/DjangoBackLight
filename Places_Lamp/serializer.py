@@ -36,7 +36,7 @@ class RoomPostSerializer(ModelSerializer) :
         model = Room
         fields = ["id","name" , "home"]
     def __init__(self , *args , **kwargs) :
-        super().__init__(self , *args , **kwargs) 
+        super().__init__( *args , **kwargs) 
         
         request = self.context["request"]
         if (request and request.user.is_authenticated) : 
@@ -67,7 +67,7 @@ class LampPostSerializer(ModelSerializer) :
         fields =["id","name" , "status" , "room" ,"shared_with_id" ]
 
     def __init__(self , *args , **kwargs) :
-        super().__init__(self , *args , **kwargs) 
+        super().__init__( *args , **kwargs) 
         
         request = self.context["request"]
         if (request and request.user.is_authenticated) : 
@@ -83,7 +83,7 @@ class LampPostSchedulSerializer(ModelSerializer) :
         model=LampSchedul 
         fields ="__all__"
     def __init__(self , *args , **kwargs) :
-        super().__init__(self , *args , **kwargs) 
+        super().__init__( *args , **kwargs) 
         
         request = self.context["request"]
         if (request and request.user.is_authenticated) : 
@@ -99,3 +99,12 @@ class LampViewSchedulSerializer(ModelSerializer) :
     class Meta : 
         model=LampSchedul 
         fields ="__all__"
+
+class UserSchedulPost(ModelSerializer) : 
+    class Meta  : 
+        model = UserSchedule
+        fields = ["id" , "on_time" , "off_time"]
+class UserSchedulView(ModelSerializer) : 
+    class Meta : 
+        models = UserSchedule
+        fields = "__all__"

@@ -14,4 +14,5 @@ router.register(r"home" , ApiView.HomeHandller , basename="homeH" , )
 router.register(r"room" , ApiView.RoomHandller , basename="roomH" , )
 router.register(r"lamp" , ApiView.LampHandeller , basename="lampH" ,)
 router.register(r"lamp_schedul" , ApiView.LampSchedulHandeller , basename="lampschedulH" )
+router.register(r"user_schedul" , ApiView.UserSchedulLampHandeller , basename="userschedulH" )
 urlpatterns += router.urls
