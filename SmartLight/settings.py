@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "corsheaders",  # Add CORS headers support
     "User",
     "Places_Lamp",
     "API",
@@ -51,6 +52,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # Add CORS middleware (must be high in the list)
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -166,15 +168,50 @@ SPECTACULAR_SETTINGS = {
 
 SIMPLE_JWT = {
     # How long the access token is valid (must be short for security)
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30), 
-    
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+
     # How long the refresh token is valid (longer for user convenience)
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 
     # Configuration to ensure tokens are used as Bearer tokens
     "AUTH_HEADER_TYPES": ("Bearer",),
-    
+
     # Optionally allow the use of Blacklisting (recommended)
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
 }
+
+# CORS Configuration
+# Allow requests from the React frontend during development
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Vite default port
+    "http://localhost:3000",  # Alternative port
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+
+# Allow credentials (cookies, authorization headers, etc.)
+CORS_ALLOW_CREDENTIALS = True
+
+# Headers that the frontend can use
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Methods allowed
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
