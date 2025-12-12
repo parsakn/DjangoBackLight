@@ -37,7 +37,10 @@ class RoomHandller(viewsets.ModelViewSet) :
     http_method_names = ['get', 'post', 'head', 'options']
     def get_queryset(self):
         user = self.request.user
-        return Room.objects.filter(owner = user)
+        # Room has no direct owner field; ownership is via the parent Home.
+        return Room.objects.filter(
+            Q(home__owner=user) | Q(home__shared_with=user)
+        ).distinct()
     def get_serializer_class(self):
         if self.action in ["list", "retrieve"]:
             return RoomVIewSerializer
