@@ -74,7 +74,17 @@ const lampSchema = z.object({
   status: z.boolean().optional(),
 })
 
-const LampRow = ({ lamp }: { lamp: LampView }) => (
+const LampRow = ({
+  lamp,
+  onToggle,
+  loading,
+  error,
+}: {
+  lamp: LampView
+  onToggle: (lamp: LampView) => void
+  loading?: boolean
+  error?: string | null
+}) => (
   <div className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-white/60 p-3">
     <div className="flex items-start justify-between gap-3">
       <div>
@@ -96,18 +106,28 @@ const LampRow = ({ lamp }: { lamp: LampView }) => (
         </div>
       </div>
       <div className="flex flex-col items-end gap-2">
-        <div
+        <button
+          type="button"
+          onClick={() => onToggle(lamp)}
+          disabled={loading || !lamp.connection}
           className={`relative h-6 w-12 rounded-full transition-colors duration-200 ${
             lamp.status ? 'bg-emerald-400/80' : 'bg-slate-200'
-          }`}
+          } ${!lamp.connection ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
         >
           <div
             className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
               lamp.status ? 'translate-x-6' : ''
             }`}
           />
-        </div>
-        <p className="text-[11px] text-slate-500">Read-only (no update endpoint)</p>
+        </button>
+        <p className="text-[11px] text-slate-500">
+          {lamp.connection ? (loading ? 'Updating…' : 'Tap to toggle') : 'Offline (cannot toggle)'}
+        </p>
+        {error && (
+          <p className="text-[11px] text-rose-500">
+            Last command failed: {error}
+          </p>
+        )}
         <TokenCopy token={lamp.token} />
       </div>
     </div>
@@ -118,9 +138,12 @@ type RoomProps = {
   room: RoomView
   lamps: LampView[]
   onAddLamp: (roomId: number) => void
+  onToggleLamp: (lamp: LampView) => void
+  togglingLampId?: number | null
+  lampErrors: Record<number, string | null>
 }
 
-const RoomBlock = ({ room, lamps, onAddLamp }: RoomProps) => (
+const RoomBlock = ({ room, lamps, onAddLamp, onToggleLamp, togglingLampId, lampErrors }: RoomProps) => (
   <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
     <div className="mb-2 flex items-center justify-between">
       <div>
@@ -135,7 +158,15 @@ const RoomBlock = ({ room, lamps, onAddLamp }: RoomProps) => (
       {lamps.length === 0 ? (
         <p className="text-xs text-slate-500">No lamps yet.</p>
       ) : (
-        lamps.map((lamp) => <LampRow key={lamp.id} lamp={lamp} />)
+        lamps.map((lamp) => (
+          <LampRow
+            key={lamp.id}
+            lamp={lamp}
+            onToggle={onToggleLamp}
+            loading={togglingLampId === lamp.id}
+            error={lampErrors[lamp.id]}
+          />
+        ))
       )}
     </div>
   </div>
@@ -149,6 +180,9 @@ type HomeCardProps = {
   onToggle: (id: number) => void
   onAddRoom: (homeId: number) => void
   onAddLamp: (roomId: number) => void
+  onToggleLamp: (lamp: LampView) => void
+  togglingLampId?: number | null
+  lampErrors: Record<number, string | null>
 }
 
 const HomeCard = ({
@@ -159,6 +193,9 @@ const HomeCard = ({
   onToggle,
   onAddRoom,
   onAddLamp,
+  onToggleLamp,
+  togglingLampId,
+  lampErrors,
 }: HomeCardProps) => {
   const accent = accentFromString(home.name)
   const lampCount = rooms.reduce(
@@ -223,6 +260,9 @@ const HomeCard = ({
                   room={room}
                   lamps={lampsByRoom[room.name] ?? []}
                   onAddLamp={onAddLamp}
+                  onToggleLamp={onToggleLamp}
+                  togglingLampId={togglingLampId}
+                  lampErrors={lampErrors}
                 />
               ))
             )}
@@ -433,6 +473,8 @@ export const DashboardPage = () => {
   const [homeModal, setHomeModal] = useState(false)
   const [roomTarget, setRoomTarget] = useState<{ homeId: number; homeName: string } | null>(null)
   const [lampTarget, setLampTarget] = useState<{ roomId: number; roomName: string } | null>(null)
+  const [togglingLampId, setTogglingLampId] = useState<number | null>(null)
+  const [lampErrors, setLampErrors] = useState<Record<number, string | null>>({})
 
   const { roomsByHome, lampsByRoom } = useGrouping(roomsQuery.data, lampsQuery.data)
 
@@ -539,6 +581,23 @@ export const DashboardPage = () => {
     },
   })
 
+  const setLampStatus = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: boolean }) =>
+      profileApi.setLampStatus(id, { status }),
+    onMutate: ({ id }) => {
+      // Clear previous error for this lamp when a new command is sent
+      setLampErrors((prev) => ({ ...prev, [id]: null }))
+    },
+    onError: (error, variables) => {
+      const message = error instanceof Error ? error.message : 'Command failed'
+      setLampErrors((prev) => ({ ...prev, [variables.id]: message }))
+    },
+    // Do NOT update lamp status optimistically; rely on websocket updates
+    onSettled: () => {
+      setTogglingLampId(null)
+    },
+  })
+
   const handleLogout = () => {
     logout()
     queryClient.clear()
@@ -574,6 +633,12 @@ export const DashboardPage = () => {
       status: data.status,
     })
     setLampTarget(null)
+  }
+
+  const handleToggleLamp = (lamp: LampView) => {
+    if (!lamp.connection || setLampStatus.isPending) return
+    setTogglingLampId(lamp.id)
+    setLampStatus.mutate({ id: lamp.id, status: !lamp.status })
   }
 
   const isLoading = homesQuery.isLoading || roomsQuery.isLoading || lampsQuery.isLoading
@@ -622,6 +687,9 @@ export const DashboardPage = () => {
                   onToggle={(id) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))}
                   onAddRoom={handleAddRoom}
                   onAddLamp={handleAddLamp}
+                  onToggleLamp={handleToggleLamp}
+                  togglingLampId={togglingLampId}
+                  lampErrors={lampErrors}
                 />
               </div>
             ))}

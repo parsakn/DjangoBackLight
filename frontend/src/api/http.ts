@@ -4,6 +4,7 @@ import type {
   HomePost,
   HomeView,
   LampPost,
+  LampStatusUpdate,
   LampView,
   RoomPost,
   RoomView,
@@ -150,6 +151,10 @@ export const profileApi = {
   },
   async createLamp(payload: LampPost) {
     const res = await http.post<LampPost>('/Profile/lamp/', payload)
+    return res.data
+  },
+  async setLampStatus(id: number, payload: LampStatusUpdate) {
+    const res = await http.patch<LampView>(`/Profile/lamp/${id}/status/`, payload)
     return res.data
   },
 }

@@ -3,6 +3,13 @@ from .serializer import *
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework import status
+import paho.mqtt.publish as publish
+import json
+from SmartLight import settings
+import time
 
 class HomeHandller(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'head', 'options']
@@ -70,7 +77,7 @@ class RoomHandller(viewsets.ModelViewSet) :
 
 class LampHandeller(viewsets.ModelViewSet) :
     queryset = Lamp.objects.all() 
-    http_method_names = ['get', 'post', 'head', 'options']
+    http_method_names = ['get', 'post', 'head', 'options', 'patch']
     def get_queryset(self):
         user = self.request.user
         return Lamp.objects.filter(
@@ -87,6 +94,76 @@ class LampHandeller(viewsets.ModelViewSet) :
         context["request"] = self.request
         return context
     permission_classes=[IsAuthenticated]
+
+    @action(detail=True, methods=["patch"], url_path="status")
+    def set_status(self, request, pk=None):
+        """
+        Change lamp on/off status and forward command via existing MQTT bridge.
+
+        Request body: {"status": true} or {"status": false}
+        """
+        lamp = self.get_object()
+        original_status = bool(lamp.status)
+        user = request.user
+
+        # Authorization check reuses existing domain rule.
+        if not lamp.can_access(user):
+            return Response({"detail": "Not allowed to control this lamp."}, status=status.HTTP_403_FORBIDDEN)
+
+        new_status = request.data.get("status", None)
+        if not isinstance(new_status, bool):
+            return Response(
+                {"detail": "Field 'status' must be a boolean."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Map boolean to payload understood by existing consumers / devices.
+        payload = "1" if new_status else "0"
+
+        # Publish directly to MQTT broker (same format as MqttConsumer.mqtt_pub)
+        topic = f"Devices/{lamp.token}/command"
+        dict_payload = {"msg": payload}
+        json_payload = json.dumps(dict_payload)
+        
+        try:
+            publish.single(topic, json_payload, hostname=settings.MQTT_BROKER, port=settings.MQTT_PORT)
+            print(f"MQTT PUB → {user.username} → {topic}={json_payload}", flush=True)
+        except Exception as e:
+            # Log error but still return success since DB is updated
+            print(f"⚠️ MQTT publish failed: {e}", flush=True)
+            return Response(
+                {
+                    "detail": "Lamp status updated locally but MQTT publish failed.",
+                    "error": str(e),
+                    "lamp": LampViewSerializer(lamp).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # Wait up to 5 seconds for the device/MQTT bridge to report the new status.
+        # We re-read from the database and compare to the desired status.
+        deadline = time.time() + 5.0
+        desired_status = bool(new_status)
+
+        while time.time() < deadline:
+            time.sleep(0.5)
+            # Reload lamp from DB to see if status has changed
+            refreshed = Lamp.objects.get(pk=lamp.pk)
+            if bool(refreshed.status) == desired_status:
+                serializer = LampViewSerializer(refreshed, context=self.get_serializer_context())
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # If we reach here, the device never confirmed the status change in time.
+        # Treat this as a failure to execute the command.
+        current = Lamp.objects.get(pk=lamp.pk)
+        serializer = LampViewSerializer(current, context=self.get_serializer_context())
+        return Response(
+            {
+                "detail": "Lamp status command timed out without device confirmation.",
+                "lamp": serializer.data,
+            },
+            status=status.HTTP_504_GATEWAY_TIMEOUT,
+        )
 
 class LampSchedulHandeller(viewsets.ModelViewSet) : 
     queryset = LampSchedul.objects.all()

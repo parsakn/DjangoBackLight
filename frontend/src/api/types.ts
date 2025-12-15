@@ -61,3 +61,7 @@ export interface LampPost {
   shared_with_id?: number[]
 }
 
+export interface LampStatusUpdate {
+  status: boolean
+}
+

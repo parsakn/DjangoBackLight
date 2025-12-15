@@ -216,6 +216,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/LampView'
           description: ''
+    patch:
+      operationId: Profile_lamp_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this lamp.
+        required: true
+      tags:
+      - Profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LampStatusUpdate'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LampView'
+          description: ''
   /Profile/lamp_schedul/:
     get:
       operationId: Profile_lamp_schedul_list
@@ -522,6 +549,13 @@ components:
       - room
       - shared_with
       - token
+    LampStatusUpdate:
+      type: object
+      properties:
+        status:
+          type: boolean
+      required:
+      - status
     LampViewSchedul:
       type: object
       properties:
