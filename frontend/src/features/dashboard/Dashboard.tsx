@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useIsFetching, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { profileApi, API_BASE_URL } from '../../api/http'
+import { profileApi, API_BASE_URL, getAccessToken } from '../../api/http'
 import type { HomeView, LampView, RoomView } from '../../api/types'
 import { useAuth } from '../../auth/AuthProvider'
 import { Button } from '../../components/ui/Button'
@@ -96,10 +96,14 @@ const LampRow = ({ lamp }: { lamp: LampView }) => (
         </div>
       </div>
       <div className="flex flex-col items-end gap-2">
-        <div className="relative h-6 w-12 rounded-full bg-slate-200">
+        <div
+          className={`relative h-6 w-12 rounded-full transition-colors duration-200 ${
+            lamp.status ? 'bg-emerald-400/80' : 'bg-slate-200'
+          }`}
+        >
           <div
             className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
-              lamp.status ? 'translate-x-6 bg-emerald-400' : ''
+              lamp.status ? 'translate-x-6' : ''
             }`}
           />
         </div>
@@ -201,13 +205,13 @@ const HomeCard = ({
           </div>
         </div>
       </div>
-      <AnimatePresence initial={false}>
+      <AnimatePresence initial={false} mode="sync">
         {expanded && (
           <motion.div
             className="space-y-3 p-4"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
           >
             {rooms.length === 0 ? (
@@ -432,6 +436,88 @@ export const DashboardPage = () => {
 
   const { roomsByHome, lampsByRoom } = useGrouping(roomsQuery.data, lampsQuery.data)
 
+  // --- WebSocket: live lamp status updates ---
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    // Build WebSocket URL from API base so we always hit Django, not the Vite dev server.
+    let wsUrl: string
+    try {
+      const api = new URL(API_BASE_URL)
+      const protocol = api.protocol === 'https:' ? 'wss:' : 'ws:'
+      wsUrl = `${protocol}//${api.host}/ws/light/`
+    } catch {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      wsUrl = `${protocol}://${window.location.hostname}:8000/ws/light/`
+    }
+
+    const accessToken = getAccessToken()
+    const wsWithAuth = accessToken
+      ? `${wsUrl}?token=${encodeURIComponent(accessToken)}`
+      : wsUrl
+
+    let socket: WebSocket | null = null
+    let isUnmounted = false
+
+    const connect = () => {
+      if (isUnmounted) return
+
+      socket = new WebSocket(wsWithAuth)
+
+      socket.onopen = () => {
+        // connection established
+      }
+
+      socket.onclose = () => {
+        // simple auto‑reconnect with small delay
+        if (!isUnmounted) {
+          setTimeout(connect, 3000)
+        }
+      }
+
+      socket.onerror = () => {
+        // errors are logged in backend; no-op here
+      }
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as {
+            token?: string
+            status?: boolean
+            establish?: boolean
+          }
+
+          if (!data?.token) return
+
+          queryClient.setQueryData<LampView[]>(['lamps'], (prev) => {
+            if (!prev) return prev
+            return prev.map((lamp) =>
+              lamp.token === data.token
+                ? {
+                    ...lamp,
+                    status: typeof data.status === 'boolean' ? data.status : lamp.status,
+                    connection:
+                      typeof data.establish === 'boolean' ? data.establish : lamp.connection,
+                  }
+                : lamp,
+            )
+          })
+        } catch {
+          // ignore malformed payloads
+        }
+      }
+    }
+
+    connect()
+
+    return () => {
+      isUnmounted = true
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.close()
+      }
+    }
+  }, [queryClient])
+
   const createHome = useMutation({
     mutationFn: profileApi.createHome,
     onSuccess: () => {
@@ -525,18 +611,19 @@ export const DashboardPage = () => {
             ))}
           </div>
         ) : homesQuery.data && homesQuery.data.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="flex flex-wrap gap-4">
             {homesQuery.data.map((home) => (
-              <HomeCard
-                key={home.id}
-                home={home}
-                rooms={roomsByHome[home.name] ?? []}
-                lampsByRoom={lampsByRoom}
-                expanded={Boolean(expanded[home.id])}
-                onToggle={(id) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))}
-                onAddRoom={handleAddRoom}
-                onAddLamp={handleAddLamp}
-              />
+              <div key={home.id} className="w-full md:w-[calc(50%-0.5rem)]">
+                <HomeCard
+                  home={home}
+                  rooms={roomsByHome[home.name] ?? []}
+                  lampsByRoom={lampsByRoom}
+                  expanded={Boolean(expanded[home.id])}
+                  onToggle={(id) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))}
+                  onAddRoom={handleAddRoom}
+                  onAddLamp={handleAddLamp}
+                />
+              </div>
             ))}
           </div>
         ) : (
