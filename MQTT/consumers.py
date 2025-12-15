@@ -184,6 +184,7 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
 
     async def connect(self):
         user = self.scope["user"]
+        print("LightConsumer.connect: user =", getattr(user, "username", None), "auth=", getattr(user, "is_authenticated", False), flush=True)
         if user.is_authenticated:
             self.user_group_name = f"user_{user.id}"
             await self.channel_layer.group_add(self.user_group_name, self.channel_name)
@@ -193,6 +194,7 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
             await self.send_initial_lamp_status()
             
         else:
+            print("LightConsumer.connect: anonymous user, closing connection", flush=True)
             await self.close()
 
     async def disconnect(self, code):

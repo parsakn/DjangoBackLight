@@ -11,9 +11,9 @@ import os
 
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter, ChannelNameRouter
-from channels.auth import AuthMiddlewareStack
 import MQTT.routing as mqtt_routing
 import MQTT.consumers as mqtt_consumers
+from .channels_jwt_middleware import JWTAuthMiddlewareStack
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'SmartLight.settings')
 try:
@@ -25,7 +25,7 @@ except Exception:
 application = ProtocolTypeRouter(
 	{
 		"http": get_asgi_application(),
-		"websocket": AuthMiddlewareStack(URLRouter(mqtt_routing.websocket_urlpatterns)),
+		"websocket": JWTAuthMiddlewareStack(URLRouter(mqtt_routing.websocket_urlpatterns)),
 		# Inline ChannelNameRouter here to avoid import-order / registration surprises.
 		"channel": ChannelNameRouter({
 			"mqtt": mqtt_consumers.MqttConsumer.as_asgi(),
