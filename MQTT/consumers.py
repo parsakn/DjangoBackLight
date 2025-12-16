@@ -87,14 +87,11 @@ class MqttConsumer(SyncConsumer):
         user_id = event.get("user") or (event.get("text") or {}).get("user_id") or (event.get("text") or {}).get("user")
         token = event['text']['token']
         payload = event['text']['payload']
-        dict_payload = {"msg":payload}
-        json_payload = json.dumps(dict_payload)
         try:
             lamp = Lamp.objects.get(token=token)
         except Lamp.DoesNotExist:
             print("⚠️ Invalid lamp token")
             return
-
         # resolve user from id (safe across channel layer boundaries)
         if user_id is None:
             print("❌ mqtt_pub called without user id")
@@ -106,23 +103,39 @@ class MqttConsumer(SyncConsumer):
         except User.DoesNotExist:
             print("❌ mqtt_pub: user not found")
             return
-
         if not lamp.can_access(user):
             print(f"❌ Unauthorized publish attempt by {user.username} for lamp {lamp.name}")
             return
 
+        # Normalise payload so that devices always receive plain text "ON"/"OFF"
+        # (or "DEL" for deletion) instead of a JSON envelope.
+        if isinstance(payload, bool):
+            normalized = "ON" if payload else "OFF"
+        elif isinstance(payload, (int, float)):
+            normalized = "ON" if int(payload) == 1 else "OFF"
+        elif isinstance(payload, str):
+            p = payload.strip().upper()
+            if p in ("1", "ON"):
+                normalized = "ON"
+            elif p in ("0", "OFF"):
+                normalized = "OFF"
+            else:
+                normalized = payload
+        else:
+            # Fallback: just cast to string
+            normalized = str(payload)
+
         topic = f"Devices/{token}/command"
-        print(f"MQTT PUB → {user.username} → {topic}={json_payload}", flush=True)
+
+        # Special case: deletion command should be passed through as-is.
+        if isinstance(normalized, str) and normalized.strip().upper() == "DEL":
+            payload_to_send = "DEL"
+        else:
+            payload_to_send = normalized
+
+        print(f"MQTT PUB → {user.username} → {topic}={payload_to_send}", flush=True)
 
         try:
-            # Some devices expect a raw command string (e.g. "DEL"). Others
-            # expect the JSON envelope {"msg":...}. Send raw for DEL and
-            # JSON for everything else to maximize compatibility.
-            if isinstance(payload, str) and payload.strip().upper() == "DEL":
-                payload_to_send = payload
-            else:
-                payload_to_send = json_payload
-
             publish.single(topic, payload_to_send, hostname=BROKER_URL)
             print(f"MQTT publish succeeded for topic {topic} payload={payload_to_send}", flush=True)
         except Exception as e:
@@ -340,17 +353,31 @@ class LightConsumer(AsyncJsonWebsocketConsumer):
                 'raw': info['raw'],
                 'establish': info['establish'],
             }
-            dict_payload = {"msg": payload}
-            json_payload = json.dumps(dict_payload)
 
             for uid in target_ids:
                 await self.channel_layer.group_send(f"user_{uid}", {"type": "lamp.status", "text": data})
 
-            # Fallback MQTT PUB logic (run in thread)
+            # Fallback MQTT PUB logic (run in thread) with plain text payload.
             try:
                 topic = f"Devices/{token}/command"
-                await sync_to_async(publish.single)(topic, payload, hostname=BROKER_URL)
-                print(f"Fallback MQTT PUB → {topic}={json_payload}", flush=True)
+                # Reuse the same normalisation rules as mqtt_pub above.
+                if isinstance(payload, bool):
+                    fb_payload = "ON" if payload else "OFF"
+                elif isinstance(payload, (int, float)):
+                    fb_payload = "ON" if int(payload) == 1 else "OFF"
+                elif isinstance(payload, str):
+                    p2 = payload.strip().upper()
+                    if p2 in ("1", "ON"):
+                        fb_payload = "ON"
+                    elif p2 in ("0", "OFF"):
+                        fb_payload = "OFF"
+                    else:
+                        fb_payload = payload
+                else:
+                    fb_payload = str(payload)
+
+                await sync_to_async(publish.single)(topic, fb_payload, hostname=BROKER_URL)
+                print(f"Fallback MQTT PUB → {topic}={fb_payload}", flush=True)
             except Exception as e:
                 print("⚠️ Fallback MQTT publish failed:", e, flush=True)
 

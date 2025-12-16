@@ -98,7 +98,7 @@ class LampHandeller(viewsets.ModelViewSet) :
     @action(detail=True, methods=["patch"], url_path="status")
     def set_status(self, request, pk=None):
         """
-        Change lamp on/off status and forward command via existing MQTT bridge.
+        Change lamp on/off status and forward command to the MQTT broker.
 
         Request body: {"status": true} or {"status": false}
         """
@@ -117,17 +117,17 @@ class LampHandeller(viewsets.ModelViewSet) :
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Map boolean to payload understood by existing consumers / devices.
-        payload = "1" if new_status else "0"
+        # Map boolean to the *plain text* payload expected by the device.
+        # True  -> "ON"
+        # False -> "OFF"
+        payload = "ON" if new_status else "OFF"
 
-        # Publish directly to MQTT broker (same format as MqttConsumer.mqtt_pub)
+        # Publish directly to MQTT broker as a raw string (no JSON envelope).
         topic = f"Devices/{lamp.token}/command"
-        dict_payload = {"msg": payload}
-        json_payload = json.dumps(dict_payload)
         
         try:
-            publish.single(topic, json_payload, hostname=settings.MQTT_BROKER, port=settings.MQTT_PORT)
-            print(f"MQTT PUB → {user.username} → {topic}={json_payload}", flush=True)
+            publish.single(topic, payload, hostname=settings.MQTT_BROKER, port=settings.MQTT_PORT)
+            print(f"MQTT PUB → {user.username} → {topic}={payload}", flush=True)
         except Exception as e:
             # Log error but still return success since DB is updated
             print(f"⚠️ MQTT publish failed: {e}", flush=True)
