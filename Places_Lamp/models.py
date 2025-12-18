@@ -5,15 +5,21 @@ import uuid
 # Create your models here.
 class Home(models.Model):
     """
-    Place model - represents a location where users can have homes
+    Home model - represents a location where users can have homes.
+    Name should be unique per owner, not globally.
     """
-    name = models.CharField(max_length=128 , unique=True )
+    name = models.CharField(max_length=128)
     owner = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='places')
     shared_with = models.ManyToManyField(
         get_user_model(),
         blank=True,
         related_name="shared_homes",
     )
+
+    class Meta:
+        # Allow different users to have homes with the same name,
+        # but prevent duplicate names for the same owner.
+        unique_together = ("owner", "name")
 
     def __str__(self) : 
         return self.name

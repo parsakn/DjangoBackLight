@@ -277,11 +277,12 @@ const HomeCard = ({
 const useGrouping = (
   rooms?: RoomView[],
   lamps?: LampView[],
-): { roomsByHome: MapByKey<RoomView>; lampsByRoom: Record<number, LampView[]> } => {
-  const roomsByHome = useMemo<MapByKey<RoomView>>(() => {
-    const acc: MapByKey<RoomView> = {}
+): { roomsByHome: Record<number, RoomView[]>; lampsByRoom: Record<number, LampView[]> } => {
+  const roomsByHome = useMemo<Record<number, RoomView[]>>(() => {
+    const acc: Record<number, RoomView[]> = {}
     rooms?.forEach((room) => {
-      acc[room.home] = acc[room.home] ? [...acc[room.home], room] : [room]
+      const key = room.home_id
+      acc[key] = acc[key] ? [...acc[key], room] : [room]
     })
     return acc
   }, [rooms])
@@ -769,7 +770,7 @@ export const DashboardPage = () => {
               <div key={home.id} className="self-start">
                 <HomeCard
                   home={home}
-                  rooms={roomsByHome[home.name] ?? []}
+                  rooms={roomsByHome[home.id] ?? []}
                   lampsByRoom={lampsByRoom}
                   expanded={Boolean(expanded[home.id])}
                   onToggle={(id) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))}

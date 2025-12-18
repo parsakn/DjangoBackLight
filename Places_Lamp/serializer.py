@@ -21,6 +21,21 @@ class HomePostSerializer(ModelSerializer) :
         model = Home
         fields = ["id","name", "shared_with_id"]
 
+    def validate(self, attrs):
+        """
+        Ensure home name is unique per owner.
+        """
+        request = self.context.get("request")
+        owner = getattr(request, "user", None)
+        name = attrs.get("name")
+        if owner and owner.is_authenticated and name:
+            exists = Home.objects.filter(owner=owner, name=name).exists()
+            if exists:
+                raise serializers.ValidationError(
+                    {"name": "You already have a home with this name."}
+                )
+        return attrs
+
 
 
 class HomeViewSerializer(ModelSerializer) : 
@@ -45,9 +60,10 @@ class RoomPostSerializer(ModelSerializer) :
 
 class RoomVIewSerializer(ModelSerializer) : 
     home = serializers.CharField(source = "home.name")
+    home_id = serializers.IntegerField(source="home.id", read_only=True)
     class Meta : 
         model = Room
-        fields = ["id","name" , "home"]
+        fields = ["id","name" , "home", "home_id"]
 
 class LampViewSerializer(ModelSerializer) : 
     # human‑friendly room name

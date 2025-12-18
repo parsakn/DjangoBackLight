@@ -35,6 +35,7 @@ export interface RoomView {
   id: number
   name: string
   home: string
+  home_id: number
 }
 
 export interface RoomPost {
