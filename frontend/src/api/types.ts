@@ -67,3 +67,22 @@ export interface LampStatusUpdate {
   status: boolean
 }
 
+export type VoiceCommandResult =
+  | {
+      action: 'create_home'
+      home: HomeView | { id: number; name: string }
+    }
+  | {
+      action: 'create_room'
+      room: RoomView & { home_name?: string }
+    }
+  | {
+      action: 'create_lamp'
+      lamp: LampView & { home_id?: number; home_name?: string }
+    }
+  | {
+      action: 'set_lamp_status'
+      lamp: LampView & { home_id?: number; home_name?: string }
+    }
+  | Record<string, unknown>
+

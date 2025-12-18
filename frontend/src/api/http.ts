@@ -11,6 +11,7 @@ import type {
   TokenObtainPair,
   TokenRefresh,
   UserCreate,
+  VoiceCommandResult,
 } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -204,6 +205,17 @@ export const profileApi = {
   },
   async setLampStatus(id: number, payload: LampStatusUpdate) {
     const res = await http.patch<LampView>(`/Profile/lamp/${id}/status/`, payload)
+    return res.data
+  },
+}
+
+export const voiceApi = {
+  async sendCommand(audio: File) {
+    const form = new FormData()
+    form.append('audio', audio)
+    const res = await http.post<VoiceCommandResult>('/api/voice/command/', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     return res.data
   },
 }

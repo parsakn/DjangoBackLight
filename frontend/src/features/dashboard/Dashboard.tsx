@@ -5,8 +5,8 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useIsFetching, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Home, DoorOpen, Lightbulb, ChevronDown } from 'lucide-react'
-import { profileApi, API_BASE_URL, getAccessToken, getApiErrorMessage } from '../../api/http'
+import { Home, DoorOpen, Lightbulb, ChevronDown, Mic } from 'lucide-react'
+import { profileApi, API_BASE_URL, getAccessToken, getApiErrorMessage, voiceApi } from '../../api/http'
 import type { HomeView, LampView, RoomView } from '../../api/types'
 import { useAuth } from '../../auth/AuthProvider'
 import { Button } from '../../components/ui/Button'
@@ -434,10 +434,12 @@ const HeaderBar = ({
   onAddHome,
   onLogout,
   isBusy,
+  onOpenVoice,
 }: {
   onAddHome: () => void
   onLogout: () => void
   isBusy: boolean
+  onOpenVoice: () => void
 }) => {
   const online = navigator.onLine
   return (
@@ -451,6 +453,10 @@ const HeaderBar = ({
         <Pill tone={online ? 'green' : 'rose'}>{online ? 'Online' : 'Offline'}</Pill>
         <Pill tone={isBusy ? 'orange' : 'slate'}>{isBusy ? 'Syncing…' : 'Idle'}</Pill>
         <Pill tone="blue">Base: {API_BASE_URL}</Pill>
+        <Button variant="secondary" onClick={onOpenVoice}>
+          <Mic className="h-4 w-4" />
+          Voice agent
+        </Button>
         <Button variant="secondary" onClick={onAddHome}>
           <Home className="h-4 w-4" />
           Add home
@@ -479,6 +485,7 @@ export const DashboardPage = () => {
   const [roomTarget, setRoomTarget] = useState<{ homeId: number; homeName: string } | null>(null)
   const [lampTarget, setLampTarget] = useState<{ roomId: number; roomName: string } | null>(null)
   const [togglingLampId, setTogglingLampId] = useState<number | null>(null)
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false)
 
   const { roomsByHome, lampsByRoom } = useGrouping(roomsQuery.data, lampsQuery.data)
 
@@ -741,7 +748,12 @@ export const DashboardPage = () => {
   return (
     <div className="app-shell">
       <div className="mx-auto max-w-6xl px-4 py-6 pb-28">
-        <HeaderBar onAddHome={() => setHomeModal(true)} onLogout={handleLogout} isBusy={isFetching > 0} />
+        <HeaderBar
+          onAddHome={() => setHomeModal(true)}
+          onLogout={handleLogout}
+          isBusy={isFetching > 0}
+          onOpenVoice={() => setVoiceModalOpen(true)}
+        />
 
         {hasError && (
           <ErrorBanner
@@ -802,7 +814,165 @@ export const DashboardPage = () => {
         loading={createLamp.isPending}
         roomName={lampTarget?.roomName}
       />
+      <VoiceModal
+        open={voiceModalOpen}
+        onClose={() => setVoiceModalOpen(false)}
+      />
     </div>
+  )
+}
+
+const VoiceModal = ({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) => {
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+  const [chunks, setChunks] = useState<BlobPart[]>([])
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const toast = useToast()
+  const queryClient = useQueryClient()
+
+  const canRecord = typeof window !== 'undefined' && 'MediaRecorder' in window
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!audioBlob) {
+      toast.warning('Please record a voice command first.')
+      return
+    }
+
+    setIsSending(true)
+    try {
+      const file = new File([audioBlob], 'voice-command.webm', {
+        type: audioBlob.type || 'audio/webm',
+      })
+      const result = await voiceApi.sendCommand(file)
+
+      // Lightly interpret result for user feedback
+      const action = (result as any).action as string | undefined
+      if (action === 'create_home') {
+        toast.success('Home created via voice.')
+        queryClient.invalidateQueries({ queryKey: ['homes'] })
+      } else if (action === 'create_room') {
+        toast.success('Room created via voice.')
+        queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      } else if (action === 'create_lamp') {
+        toast.success('Lamp created via voice.')
+        queryClient.invalidateQueries({ queryKey: ['lamps'] })
+      } else if (action === 'set_lamp_status') {
+        const lamp = (result as any).lamp as LampView | undefined
+        const statusText = lamp?.status ? 'ON' : 'OFF'
+        toast.success(`Lamp turned ${statusText} via voice.`)
+        queryClient.invalidateQueries({ queryKey: ['lamps'] })
+      } else {
+        toast.info('Voice command processed, but no recognizable action was returned.')
+      }
+
+      onClose()
+      setAudioBlob(null)
+      setChunks([])
+    } catch (error) {
+      const message = getApiErrorMessage(
+        error,
+        'Voice command failed. Please try again or use the dashboard controls.',
+      )
+      toast.error(message, 8000)
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const startRecording = async () => {
+    if (!canRecord) {
+      toast.error('This browser does not support in‑page audio recording.')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      const localChunks: BlobPart[] = []
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          localChunks.push(event.data)
+        }
+      }
+
+      recorder.onstop = () => {
+        const blob = new Blob(localChunks, { type: 'audio/webm' })
+        setAudioBlob(blob)
+        setChunks([])
+        stream.getTracks().forEach((t) => t.stop())
+      }
+
+      setChunks([])
+      setAudioBlob(null)
+      setMediaRecorder(recorder)
+      recorder.start()
+      setIsRecording(true)
+    } catch (err) {
+      toast.error('Could not access microphone. Please check permissions and try again.')
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop()
+      setIsRecording(false)
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Voice agent">
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <p className="text-sm text-slate-600">
+          Record a short voice command like “turn on the living room ceiling lamp” or
+          “create a kitchen room in my main home”.
+        </p>
+        <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-slate-800">
+              {isRecording ? 'Recording…' : audioBlob ? 'Recording ready' : 'Not recording'}
+            </span>
+            <span className="text-xs text-slate-500">
+              {isRecording
+                ? 'Speak your command, then click Stop.'
+                : audioBlob
+                  ? 'Click Send to run this command, or Record again.'
+                  : 'Click Record to start using your microphone.'}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={isSending || !canRecord}
+            >
+              {isRecording ? 'Stop' : 'Record'}
+            </Button>
+          </div>
+        </div>
+        {!canRecord && (
+          <p className="text-xs text-rose-600">
+            Your browser does not support in‑page recording. Please try a modern browser like Chrome or Edge.
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" type="button" onClick={onClose} disabled={isSending}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={isSending} disabled={!audioBlob}>
+            Send voice command
+          </Button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 
