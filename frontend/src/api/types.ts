@@ -46,6 +46,7 @@ export interface RoomPost {
 export interface LampView {
   id: number
   room: string
+  room_id: number
   shared_with: string[]
   name: string
   status: boolean

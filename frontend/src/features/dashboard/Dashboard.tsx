@@ -170,7 +170,7 @@ const RoomBlock = ({ room, lamps, onAddLamp, onToggleLamp, togglingLampId }: Roo
 type HomeCardProps = {
   home: HomeView
   rooms: RoomView[]
-  lampsByRoom: MapByKey<LampView>
+  lampsByRoom: Record<number, LampView[]>
   expanded: boolean
   onToggle: (id: number) => void
   onAddRoom: (homeId: number) => void
@@ -191,10 +191,7 @@ const HomeCard = ({
   togglingLampId,
 }: HomeCardProps) => {
   const accent = accentFromString(home.name)
-  const lampCount = rooms.reduce(
-    (count, room) => count + (lampsByRoom[room.name]?.length ?? 0),
-    0,
-  )
+  const lampCount = rooms.reduce((count, room) => count + (lampsByRoom[room.id]?.length ?? 0), 0)
 
   return (
     <motion.div
@@ -263,7 +260,7 @@ const HomeCard = ({
                 <RoomBlock
                   key={room.id}
                   room={room}
-                  lamps={lampsByRoom[room.name] ?? []}
+                  lamps={lampsByRoom[room.id] ?? []}
                   onAddLamp={onAddLamp}
                   onToggleLamp={onToggleLamp}
                   togglingLampId={togglingLampId}
@@ -280,7 +277,7 @@ const HomeCard = ({
 const useGrouping = (
   rooms?: RoomView[],
   lamps?: LampView[],
-): { roomsByHome: MapByKey<RoomView>; lampsByRoom: MapByKey<LampView> } => {
+): { roomsByHome: MapByKey<RoomView>; lampsByRoom: Record<number, LampView[]> } => {
   const roomsByHome = useMemo<MapByKey<RoomView>>(() => {
     const acc: MapByKey<RoomView> = {}
     rooms?.forEach((room) => {
@@ -289,10 +286,11 @@ const useGrouping = (
     return acc
   }, [rooms])
 
-  const lampsByRoom = useMemo<MapByKey<LampView>>(() => {
-    const acc: MapByKey<LampView> = {}
+  const lampsByRoom = useMemo<Record<number, LampView[]>>(() => {
+    const acc: Record<number, LampView[]> = {}
     lamps?.forEach((lamp) => {
-      acc[lamp.room] = acc[lamp.room] ? [...acc[lamp.room], lamp] : [lamp]
+      const key = lamp.room_id
+      acc[key] = acc[key] ? [...acc[key], lamp] : [lamp]
     })
     return acc
   }, [lamps])

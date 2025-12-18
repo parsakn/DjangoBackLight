@@ -50,7 +50,10 @@ class RoomVIewSerializer(ModelSerializer) :
         fields = ["id","name" , "home"]
 
 class LampViewSerializer(ModelSerializer) : 
-    room = serializers.CharField(source = "room.name" , read_only=True)
+    # human‑friendly room name
+    room = serializers.CharField(source="room.name", read_only=True)
+    # stable room identifier to avoid clashes when names are reused
+    room_id = serializers.IntegerField(source="room.id", read_only=True)
     shared_with = serializers.SlugRelatedField(many=True , slug_field = "username" ,read_only=True )
     class Meta : 
         model = Lamp 
