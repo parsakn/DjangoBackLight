@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useIsFetching, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Home, DoorOpen, Lightbulb, ChevronDown } from 'lucide-react'
 import { profileApi, API_BASE_URL, getAccessToken } from '../../api/http'
 import type { HomeView, LampView, RoomView } from '../../api/types'
 import { useAuth } from '../../auth/AuthProvider'
@@ -14,6 +15,8 @@ import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { Pill } from '../../components/ui/Pill'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { useToast } from '../../components/ui/useToast'
+import type { AxiosError } from 'axios'
 
 type MapByKey<T> = Record<string, T[]>
 
@@ -78,12 +81,10 @@ const LampRow = ({
   lamp,
   onToggle,
   loading,
-  error,
 }: {
   lamp: LampView
   onToggle: (lamp: LampView) => void
   loading?: boolean
-  error?: string | null
 }) => (
   <div className="flex flex-col gap-2 rounded-lg border border-slate-100 bg-white/60 p-3">
     <div className="flex items-start justify-between gap-3">
@@ -123,11 +124,6 @@ const LampRow = ({
         <p className="text-[11px] text-slate-500">
           {lamp.connection ? (loading ? 'Updating…' : 'Tap to toggle') : 'Offline (cannot toggle)'}
         </p>
-        {error && (
-          <p className="text-[11px] text-rose-500">
-            Last command failed: {error}
-          </p>
-        )}
         <TokenCopy token={lamp.token} />
       </div>
     </div>
@@ -140,10 +136,9 @@ type RoomProps = {
   onAddLamp: (roomId: number) => void
   onToggleLamp: (lamp: LampView) => void
   togglingLampId?: number | null
-  lampErrors: Record<number, string | null>
 }
 
-const RoomBlock = ({ room, lamps, onAddLamp, onToggleLamp, togglingLampId, lampErrors }: RoomProps) => (
+const RoomBlock = ({ room, lamps, onAddLamp, onToggleLamp, togglingLampId }: RoomProps) => (
   <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
     <div className="mb-2 flex items-center justify-between">
       <div>
@@ -151,6 +146,7 @@ const RoomBlock = ({ room, lamps, onAddLamp, onToggleLamp, togglingLampId, lampE
         <p className="text-xs text-slate-600">{lamps.length} lamp(s)</p>
       </div>
       <Button variant="ghost" size="sm" onClick={() => onAddLamp(room.id)}>
+        <Lightbulb className="h-3.5 w-3.5" />
         Add lamp
       </Button>
     </div>
@@ -164,7 +160,6 @@ const RoomBlock = ({ room, lamps, onAddLamp, onToggleLamp, togglingLampId, lampE
             lamp={lamp}
             onToggle={onToggleLamp}
             loading={togglingLampId === lamp.id}
-            error={lampErrors[lamp.id]}
           />
         ))
       )}
@@ -182,7 +177,6 @@ type HomeCardProps = {
   onAddLamp: (roomId: number) => void
   onToggleLamp: (lamp: LampView) => void
   togglingLampId?: number | null
-  lampErrors: Record<number, string | null>
 }
 
 const HomeCard = ({
@@ -195,7 +189,6 @@ const HomeCard = ({
   onAddLamp,
   onToggleLamp,
   togglingLampId,
-  lampErrors,
 }: HomeCardProps) => {
   const accent = accentFromString(home.name)
   const lampCount = rooms.reduce(
@@ -207,7 +200,7 @@ const HomeCard = ({
     <motion.div
       layout
       transition={{ type: 'spring', stiffness: 120, damping: 16 }}
-      className="overflow-hidden rounded-2xl bg-white/80 shadow-card"
+      className="h-fit overflow-hidden rounded-2xl bg-white/80 shadow-card"
       style={{ border: accent.border }}
     >
       <div
@@ -234,10 +227,22 @@ const HomeCard = ({
           </p>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="secondary" onClick={() => onAddRoom(home.id)}>
+              <DoorOpen className="h-3.5 w-3.5" />
               Add room
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => onToggle(home.id)}>
-              {expanded ? 'Collapse' : 'Expand'}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => onToggle(home.id)}
+              className="bg-white/20 text-white border-white/30 hover:bg-white/30 hover:border-white/40 shadow-sm"
+            >
+              <span className="text-xs font-semibold">{expanded ? 'Collapse' : 'Expand'}</span>
+              <motion.div
+                animate={{ rotate: expanded ? 180 : 0 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </motion.div>
             </Button>
           </div>
         </div>
@@ -262,7 +267,6 @@ const HomeCard = ({
                   onAddLamp={onAddLamp}
                   onToggleLamp={onToggleLamp}
                   togglingLampId={togglingLampId}
-                  lampErrors={lampErrors}
                 />
               ))
             )}
@@ -449,6 +453,7 @@ const HeaderBar = ({
         <Pill tone={isBusy ? 'orange' : 'slate'}>{isBusy ? 'Syncing…' : 'Idle'}</Pill>
         <Pill tone="blue">Base: {API_BASE_URL}</Pill>
         <Button variant="secondary" onClick={onAddHome}>
+          <Home className="h-4 w-4" />
           Add home
         </Button>
         <Button variant="ghost" onClick={onLogout}>
@@ -464,6 +469,7 @@ export const DashboardPage = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const isFetching = useIsFetching()
+  const toast = useToast()
 
   const homesQuery = useQuery({ queryKey: ['homes'], queryFn: profileApi.homes })
   const roomsQuery = useQuery({ queryKey: ['rooms'], queryFn: profileApi.rooms })
@@ -474,7 +480,6 @@ export const DashboardPage = () => {
   const [roomTarget, setRoomTarget] = useState<{ homeId: number; homeName: string } | null>(null)
   const [lampTarget, setLampTarget] = useState<{ roomId: number; roomName: string } | null>(null)
   const [togglingLampId, setTogglingLampId] = useState<number | null>(null)
-  const [lampErrors, setLampErrors] = useState<Record<number, string | null>>({})
 
   const { roomsByHome, lampsByRoom } = useGrouping(roomsQuery.data, lampsQuery.data)
 
@@ -584,17 +589,76 @@ export const DashboardPage = () => {
   const setLampStatus = useMutation({
     mutationFn: ({ id, status }: { id: number; status: boolean }) =>
       profileApi.setLampStatus(id, { status }),
-    onMutate: ({ id }) => {
-      // Clear previous error for this lamp when a new command is sent
-      setLampErrors((prev) => ({ ...prev, [id]: null }))
+    onMutate: async ({ id, status }) => {
+      setTogglingLampId(id)
+
+      // Optimistic update: flip status in cache immediately
+      await queryClient.cancelQueries({ queryKey: ['lamps'] })
+      const previousLamps = queryClient.getQueryData<LampView[]>(['lamps'])
+
+      queryClient.setQueryData<LampView[]>(['lamps'], (prev) =>
+        prev?.map((lamp) => (lamp.id === id ? { ...lamp, status } : lamp)),
+      )
+
+      return { previousLamps }
     },
-    onError: (error, variables) => {
-      const message = error instanceof Error ? error.message : 'Command failed'
-      setLampErrors((prev) => ({ ...prev, [variables.id]: message }))
+    onError: (error, variables, context) => {
+      // Roll back optimistic update
+      if (context?.previousLamps) {
+        queryClient.setQueryData(['lamps'], context.previousLamps)
+      }
+
+      // Parse error and show specific toast message
+      const axiosError = error as AxiosError<{ detail?: string }>
+      const status = axiosError.response?.status
+      const lamp = lampsQuery.data?.find((l) => l.id === variables.id)
+      const lampName = lamp?.name || 'Lamp'
+
+      let errorMessage: string
+
+      if (status === 504) {
+        // Gateway Timeout - device didn't respond
+        errorMessage = `${lampName} didn't respond. The device may be offline or slow to respond. Please try again.`
+      } else if (status === 403) {
+        // Forbidden - no permission
+        errorMessage = `You don't have permission to control ${lampName}.`
+      } else if (status === 404) {
+        // Not Found
+        errorMessage = `${lampName} not found. It may have been deleted.`
+      } else if (status === 400) {
+        // Bad Request
+        const detail = axiosError.response?.data?.detail || 'Invalid request'
+        errorMessage = `${lampName}: ${detail}`
+      } else if (!navigator.onLine || axiosError.code === 'ERR_NETWORK') {
+        // Network error
+        errorMessage = `Connection failed. Check your internet and try again.`
+      } else if (status === 401) {
+        // Unauthorized - token expired (should be handled by interceptor, but just in case)
+        errorMessage = `Session expired. Please log in again.`
+      } else {
+        // Generic error
+        const detail = axiosError.response?.data?.detail || axiosError.message || 'Unknown error'
+        errorMessage = `Failed to toggle ${lampName}: ${detail}`
+      }
+
+      // Show toast notification
+      toast.error(errorMessage, 7000) // Show for 7 seconds for important errors
     },
-    // Do NOT update lamp status optimistically; rely on websocket updates
+    onSuccess: (data) => {
+      // Sync cache with authoritative response
+      queryClient.setQueryData<LampView[]>(['lamps'], (prev) =>
+        prev?.map((lamp) => (lamp.id === data.id ? data : lamp)),
+      )
+
+      // Show success toast (brief, since WebSocket will also confirm)
+      const lampName = data.name || 'Lamp'
+      const statusText = data.status ? 'ON' : 'OFF'
+      toast.success(`${lampName} turned ${statusText}`, 3000)
+    },
     onSettled: () => {
       setTogglingLampId(null)
+      // Light refetch to reconcile with device/MQTT confirmation if needed
+      queryClient.invalidateQueries({ queryKey: ['lamps'], refetchType: 'none' })
     },
   })
 
@@ -637,7 +701,6 @@ export const DashboardPage = () => {
 
   const handleToggleLamp = (lamp: LampView) => {
     if (!lamp.connection || setLampStatus.isPending) return
-    setTogglingLampId(lamp.id)
     setLampStatus.mutate({ id: lamp.id, status: !lamp.status })
   }
 
@@ -651,7 +714,7 @@ export const DashboardPage = () => {
 
   return (
     <div className="app-shell">
-      <div className="mx-auto max-w-6xl px-4 py-6">
+      <div className="mx-auto max-w-6xl px-4 py-6 pb-28">
         <HeaderBar onAddHome={() => setHomeModal(true)} onLogout={handleLogout} isBusy={isFetching > 0} />
 
         {hasError && (
@@ -676,9 +739,9 @@ export const DashboardPage = () => {
             ))}
           </div>
         ) : homesQuery.data && homesQuery.data.length > 0 ? (
-          <div className="flex flex-wrap gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start md:content-start">
             {homesQuery.data.map((home) => (
-              <div key={home.id} className="w-full md:w-[calc(50%-0.5rem)]">
+              <div key={home.id} className="self-start">
                 <HomeCard
                   home={home}
                   rooms={roomsByHome[home.name] ?? []}
@@ -689,7 +752,6 @@ export const DashboardPage = () => {
                   onAddLamp={handleAddLamp}
                   onToggleLamp={handleToggleLamp}
                   togglingLampId={togglingLampId}
-                  lampErrors={lampErrors}
                 />
               </div>
             ))}
