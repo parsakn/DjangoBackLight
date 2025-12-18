@@ -27,8 +27,17 @@ class Room(models.Model):
     """
     Room model - represents a room within a home
     """
-    name = models.CharField(max_length=255 , blank=True , unique=True)
+    # Room names should be unique only *within* the same home, not globally.
+    # Global uniqueness here prevented creating rooms with the same name
+    # in different homes.
+    name = models.CharField(max_length=255, blank=True)
     home = models.ForeignKey(Home, on_delete=models.CASCADE, related_name='rooms')
+
+    class Meta:
+        # Enforce "no duplicate room name in the same home", but allow
+        # the same room name across different homes.
+        unique_together = ("home", "name")
+
     def __str__(self) : 
         return self.name
 
@@ -37,7 +46,8 @@ class Lamp(models.Model):
     """
     Lamp model - represents a smart lamp in a room
     """
-    name = models.CharField(max_length=255 , blank=True , unique=True)
+    # Name should not be globally unique; only unique within a room.
+    name = models.CharField(max_length=255, blank=True)
     status = models.BooleanField(default=False)  # True = on, False = off
     connection = models.BooleanField(default=False) # connection is false until we recive msg ESP connected
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='lamps')
