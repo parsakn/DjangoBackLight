@@ -6,6 +6,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { useAuth } from '../../auth/AuthProvider'
+import { getApiErrorMessage } from '../../api/http'
 
 const schema = z
   .object({
@@ -47,7 +48,11 @@ export const RegisterPage = () => {
       await registerUser(values)
       navigate('/', { replace: true })
     } catch (error) {
-      setServerError('Registration failed. Please review the inputs and try again.')
+      const message = getApiErrorMessage(
+        error,
+        'Registration failed. Please review the inputs and try again.',
+      )
+      setServerError(message)
     }
   }
 

@@ -60,6 +60,55 @@ const http: AxiosInstance = axios.create({
   withCredentials: true,
 })
 
+/**
+ * Try to turn a backend/axios error into a human‑readable message.
+ * Handles common DRF / Django validation error shapes.
+ */
+export const getApiErrorMessage = (error: unknown, fallback = 'Something went wrong') => {
+  if (axios.isAxiosError(error)) {
+    // Network / no response from server
+    if (!error.response) {
+      return 'Cannot reach the server. Please check your internet connection and try again.'
+    }
+
+    const data = error.response.data as any
+
+    // Plain string response
+    if (typeof data === 'string') {
+      return data
+    }
+
+    // DRF-style {"detail": "..."}
+    if (data?.detail) {
+      if (typeof data.detail === 'string') return data.detail
+      try {
+        return JSON.stringify(data.detail)
+      } catch {
+        return fallback
+      }
+    }
+
+    // Field errors: {"field": ["msg1", "msg2"], ...}
+    if (data && typeof data === 'object') {
+      const parts: string[] = []
+      Object.entries(data).forEach(([field, value]) => {
+        if (Array.isArray(value)) {
+          parts.push(`${field}: ${value.join(', ')}`)
+        } else if (typeof value === 'string') {
+          parts.push(`${field}: ${value}`)
+        }
+      })
+      if (parts.length) return parts.join(' | ')
+    }
+
+    return error.message || fallback
+  }
+
+  if (error instanceof Error) return error.message || fallback
+
+  return fallback
+}
+
 http.interceptors.request.use((config) => {
   const token = getAccessToken()
   if (token && config.headers) {

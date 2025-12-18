@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useIsFetching, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Home, DoorOpen, Lightbulb, ChevronDown } from 'lucide-react'
-import { profileApi, API_BASE_URL, getAccessToken } from '../../api/http'
+import { profileApi, API_BASE_URL, getAccessToken, getApiErrorMessage } from '../../api/http'
 import type { HomeView, LampView, RoomView } from '../../api/types'
 import { useAuth } from '../../auth/AuthProvider'
 import { Button } from '../../components/ui/Button'
@@ -679,24 +679,51 @@ export const DashboardPage = () => {
   }
 
   const submitHome = async (data: AddHomeInputs) => {
-    await createHome.mutateAsync({ name: data.name })
-    setHomeModal(false)
+    try {
+      await createHome.mutateAsync({ name: data.name })
+      setHomeModal(false)
+      toast.success('Home created successfully')
+    } catch (error) {
+      const message = getApiErrorMessage(
+        error,
+        'Failed to create home. Please check the name and try again.',
+      )
+      toast.error(message, 7000)
+    }
   }
 
   const submitRoom = async (data: AddRoomInputs) => {
     if (!roomTarget) return
-    await createRoom.mutateAsync({ name: data.name, home: roomTarget.homeId })
-    setRoomTarget(null)
+    try {
+      await createRoom.mutateAsync({ name: data.name, home: roomTarget.homeId })
+      setRoomTarget(null)
+      toast.success('Room created successfully')
+    } catch (error) {
+      const message = getApiErrorMessage(
+        error,
+        'Failed to create room. Make sure name is unique within this home.',
+      )
+      toast.error(message, 7000)
+    }
   }
 
   const submitLamp = async (data: AddLampInputs) => {
     if (!lampTarget) return
-    await createLamp.mutateAsync({
-      name: data.name,
-      room: lampTarget.roomId,
-      status: data.status,
-    })
-    setLampTarget(null)
+    try {
+      await createLamp.mutateAsync({
+        name: data.name,
+        room: lampTarget.roomId,
+        status: data.status,
+      })
+      setLampTarget(null)
+      toast.success('Lamp created successfully')
+    } catch (error) {
+      const message = getApiErrorMessage(
+        error,
+        'Failed to create lamp. Please review the inputs and try again.',
+      )
+      toast.error(message, 7000)
+    }
   }
 
   const handleToggleLamp = (lamp: LampView) => {

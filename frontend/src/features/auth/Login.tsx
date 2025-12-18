@@ -6,6 +6,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { useAuth } from '../../auth/AuthProvider'
+import { getApiErrorMessage } from '../../api/http'
 
 const schema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -33,7 +34,11 @@ export const LoginPage = () => {
       await login(values)
       navigate('/', { replace: true })
     } catch (error) {
-      setServerError('Login failed. Please check your credentials and try again.')
+      const message = getApiErrorMessage(
+        error,
+        'Login failed. Please check your credentials and try again.',
+      )
+      setServerError(message)
     }
   }
 
