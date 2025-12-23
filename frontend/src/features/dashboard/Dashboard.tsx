@@ -496,11 +496,12 @@ export const DashboardPage = () => {
     let wsUrl: string
     try {
       const api = new URL(API_BASE_URL)
-      const protocol = api.protocol === 'https:' ? 'wss:' : 'ws:'
-      wsUrl = `${protocol}//${api.host}/ws/light/`
+      const protocol = api.protocol === 'https:' ? 'wss' : 'ws'
+      wsUrl = `${protocol}://${api.host}/ws/light/`
     } catch {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      wsUrl = `${protocol}://${window.location.hostname}:8000/ws/light/`
+      // API_BASE_URL is empty in production (same-origin), use window.location
+      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+      wsUrl = `${protocol}://${window.location.hostname}/ws/light/`
     }
 
     const accessToken = getAccessToken()
