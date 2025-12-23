@@ -6,6 +6,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - DJANGO_SETTINGS_MODULE=SmartLight.settings
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - DEBUG=${DEBUG:-False}
       - REDIS_HOST=redis
