@@ -102,11 +102,14 @@ DATABASES = {
     }
 }
 
-#for temp(not for production)
+# Redis configuration for channel layers
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {"hosts": [("127.0.0.1", 6379)]},
+        "CONFIG": {"hosts": [(REDIS_HOST, REDIS_PORT)]},
     },
 }
 
@@ -146,6 +149,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
