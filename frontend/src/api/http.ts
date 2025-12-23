@@ -14,7 +14,9 @@ import type {
   VoiceCommandResult,
 } from './types'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+// In production, use same origin (nginx proxies to backend)
+// In development, use localhost:8000
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://localhost:8000' : '')
 
 const storageKeys = {
   access: 'smartlight:access',
