@@ -20,7 +20,8 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
   const [accessToken, setAccessToken] = useState<string | null>(() => getAccessToken())
   const [refreshToken, setRefreshToken] = useState<string | null>(() => getRefreshToken())
   const [username, setUsername] = useState<string | null>(null)
-  const [isBootstrapping, setIsBootstrapping] = useState(false)
+  // With lazy initialization, bootstrapping is instant (no async loading)
+  const isBootstrapping = false
 
   const login = useCallback(async (payload: Pick<TokenObtainPair, 'username' | 'password'>) => {
     const res = await authApi.login(payload)
