@@ -29,7 +29,11 @@ SECRET_KEY = 'django-insecure-sr%kf5jfr=n4%0kj&+4nhpyn_!*qe2_e4o@(5jt-te$fjb_u&)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'node.lilms.top',
+    'localhost',
+    '127.0.0.1',
+]
 
 
 # Application definition
