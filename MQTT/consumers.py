@@ -4,12 +4,12 @@ from asgiref.sync import async_to_sync
 from asgiref.sync import sync_to_async
 import paho.mqtt.publish as publish
 from Places_Lamp.models import Lamp
-from SmartLight import settings
-from django.contrib.auth import get_user_model # Added
-import json # Added to ensure send_initial_lamp_status can use it if needed
+from django.conf import settings
+from django.contrib.auth import get_user_model
+import json
 from channels.layers import get_channel_layer
+
 BROKER_URL = settings.MQTT_BROKER
-User = get_user_model() # Added
 
 
 class MqttConsumer(SyncConsumer):

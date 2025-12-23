@@ -1,6 +1,5 @@
 from django.db import models
-from django.contrib.auth import get_user_model
-from SmartLight import settings
+from django.conf import settings
 import uuid
 # Create your models here.
 class Home(models.Model):
@@ -9,9 +8,9 @@ class Home(models.Model):
     Name should be unique per owner, not globally.
     """
     name = models.CharField(max_length=128)
-    owner = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='places')
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='places')
     shared_with = models.ManyToManyField(
-        get_user_model(),
+        settings.AUTH_USER_MODEL,
         blank=True,
         related_name="shared_homes",
     )
@@ -85,7 +84,7 @@ class Lamp(models.Model):
 
 class UserSchedule(models.Model):
 
-    owner = models.ForeignKey(get_user_model() , models.CASCADE)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     on_time = models.DateTimeField()
     off_time = models.DateTimeField()
     
