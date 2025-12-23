@@ -177,3 +177,34 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  deploy:
+    name: Deploy to Server
+    runs-on: self-hosted
+    needs: [build-backend-image, build-frontend-image]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy with Docker Compose
+        run: |
+          # Pull latest images
+          docker compose pull
+          
+          # Restart services with new images
+          docker compose up -d --force-recreate
+          
+          # Clean up old images
+          docker image prune -f
+          
+          # Show running containers
+          docker compose ps
+

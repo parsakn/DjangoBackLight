@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  backend:
+    image: ghcr.io/parsakn/djangobacklight/backend:latest
+    container_name: smartlight-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - DEBUG=${DEBUG:-False}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_ENDPOINT=${GEMINI_ENDPOINT:-https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent}
+      - MQTT_BROKER=${MQTT_BROKER:-node.lilms.top}
+      - MQTT_PORT=${MQTT_PORT:-1883}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - smartlight-network
+
+  frontend:
+    image: ghcr.io/parsakn/djangobacklight/frontend:latest
+    container_name: smartlight-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - smartlight-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: smartlight-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartlight-network
+
+networks:
+  smartlight-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+
