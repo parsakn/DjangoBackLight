@@ -6,10 +6,8 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-import paho.mqtt.publish as publish
-import json
-from SmartLight import settings
-import time
+from Places_Lamp.services.lamp_control import set_lamp_status
+from VoiceAgent.services import exceptions as voice_exceptions
 
 class HomeHandller(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'head', 'options']
@@ -101,15 +99,15 @@ class LampHandeller(viewsets.ModelViewSet) :
         Change lamp on/off status and forward command to the MQTT broker.
 
         Request body: {"status": true} or {"status": false}
+
+        This view keeps the same external behaviour as before the refactor:
+        - 403 when the user cannot control the lamp
+        - 400 when the `status` field is invalid
+        - 504 when the command times out without device confirmation
+        - 200 on success, and also 200 when MQTT publish fails but local state
+          is (eventually) updated.
         """
         lamp = self.get_object()
-        original_status = bool(lamp.status)
-        user = request.user
-
-        # Authorization check reuses existing domain rule.
-        if not lamp.can_access(user):
-            return Response({"detail": "Not allowed to control this lamp."}, status=status.HTTP_403_FORBIDDEN)
-
         new_status = request.data.get("status", None)
         if not isinstance(new_status, bool):
             return Response(
@@ -117,53 +115,45 @@ class LampHandeller(viewsets.ModelViewSet) :
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Map boolean to the *plain text* payload expected by the device.
-        # True  -> "ON"
-        # False -> "OFF"
-        payload = "ON" if new_status else "OFF"
-
-        # Publish directly to MQTT broker as a raw string (no JSON envelope).
-        topic = f"Devices/{lamp.token}/command"
-        
         try:
-            publish.single(topic, payload, hostname=settings.MQTT_BROKER, port=settings.MQTT_PORT)
-            print(f"MQTT PUB → {user.username} → {topic}={payload}", flush=True)
-        except Exception as e:
-            # Log error but still return success since DB is updated
-            print(f"⚠️ MQTT publish failed: {e}", flush=True)
+            # Core logic (permissions + MQTT + polling) lives in the shared
+            # service so it can be reused by the voice agent.
+            set_lamp_status(
+                user=request.user,
+                lamp=lamp,
+                desired_status=bool(new_status),
+            )
+        except voice_exceptions.DomainActionError as e:
+            status_code = getattr(e, "status_code", None)
+
+            # Preserve previous soft‑failure semantics for MQTT publish errors:
+            # return HTTP 200 along with the current lamp state and message.
+            if status_code == 200:
+                serializer = LampViewSerializer(
+                    Lamp.objects.get(pk=lamp.pk),
+                    context=self.get_serializer_context(),
+                )
+                return Response(
+                    {
+                        "detail": str(e),
+                        "lamp": serializer.data,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+            # For permission errors (403) and timeouts (504), bubble up the
+            # original status code so clients see the same behaviour as before.
             return Response(
-                {
-                    "detail": "Lamp status updated locally but MQTT publish failed.",
-                    "error": str(e),
-                    "lamp": LampViewSerializer(lamp).data,
-                },
-                status=status.HTTP_200_OK,
+                {"detail": str(e)},
+                status=status_code or status.HTTP_400_BAD_REQUEST,
             )
 
-        # Wait up to 5 seconds for the device/MQTT bridge to report the new status.
-        # We re-read from the database and compare to the desired status.
-        deadline = time.time() + 5.0
-        desired_status = bool(new_status)
-
-        while time.time() < deadline:
-            time.sleep(0.5)
-            # Reload lamp from DB to see if status has changed
-            refreshed = Lamp.objects.get(pk=lamp.pk)
-            if bool(refreshed.status) == desired_status:
-                serializer = LampViewSerializer(refreshed, context=self.get_serializer_context())
-                return Response(serializer.data, status=status.HTTP_200_OK)
-
-        # If we reach here, the device never confirmed the status change in time.
-        # Treat this as a failure to execute the command.
-        current = Lamp.objects.get(pk=lamp.pk)
-        serializer = LampViewSerializer(current, context=self.get_serializer_context())
-        return Response(
-            {
-                "detail": "Lamp status command timed out without device confirmation.",
-                "lamp": serializer.data,
-            },
-            status=status.HTTP_504_GATEWAY_TIMEOUT,
+        # On success, return the full lamp representation as before.
+        serializer = LampViewSerializer(
+            Lamp.objects.get(pk=lamp.pk),
+            context=self.get_serializer_context(),
         )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class LampSchedulHandeller(viewsets.ModelViewSet) : 
     queryset = LampSchedul.objects.all()

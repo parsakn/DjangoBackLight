@@ -28,6 +28,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path("Account/" , include("User.urls")) , 
     path("" , views.ViewHome.as_view() , name="home") , 
+    path("api/voice/", include("VoiceAgent.urls")),
     # API schema and interactive docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
