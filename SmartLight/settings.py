@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'rest_framework',
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",  # Required for BLACKLIST_AFTER_ROTATION
     "drf_spectacular",
 
 ]
