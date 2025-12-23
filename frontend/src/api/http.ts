@@ -72,7 +72,7 @@ export const getApiErrorMessage = (error: unknown, fallback = 'Something went wr
       return 'Cannot reach the server. Please check your internet connection and try again.'
     }
 
-    const data = error.response.data as any
+    const data = error.response.data as Record<string, unknown>
 
     // Plain string response
     if (typeof data === 'string') {
@@ -136,7 +136,7 @@ const refreshAccessToken = async (): Promise<string | null> => {
         setAuthTokens(newAccess, refresh)
       }
       return newAccess ?? null
-    } catch (error) {
+    } catch {
       clearAuthTokens()
       return null
     } finally {

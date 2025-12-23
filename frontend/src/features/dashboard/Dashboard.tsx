@@ -18,7 +18,6 @@ import { Skeleton } from '../../components/ui/Skeleton'
 import { useToast } from '../../components/ui/useToast'
 import type { AxiosError } from 'axios'
 
-type MapByKey<T> = Record<string, T[]>
 
 const accentFromString = (value: string) => {
   let hash = 0
@@ -830,7 +829,6 @@ const VoiceModal = ({
   onClose: () => void
 }) => {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
-  const [chunks, setChunks] = useState<BlobPart[]>([])
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [isSending, setIsSending] = useState(false)
@@ -854,7 +852,8 @@ const VoiceModal = ({
       const result = await voiceApi.sendCommand(file)
 
       // Lightly interpret result for user feedback
-      const action = (result as any).action as string | undefined
+      const typedResult = result as { action?: string; lamp?: LampView }
+      const action = typedResult.action
       if (action === 'create_home') {
         toast.success('Home created via voice.')
         queryClient.invalidateQueries({ queryKey: ['homes'] })
@@ -865,7 +864,7 @@ const VoiceModal = ({
         toast.success('Lamp created via voice.')
         queryClient.invalidateQueries({ queryKey: ['lamps'] })
       } else if (action === 'set_lamp_status') {
-        const lamp = (result as any).lamp as LampView | undefined
+        const lamp = typedResult.lamp
         const statusText = lamp?.status ? 'ON' : 'OFF'
         toast.success(`Lamp turned ${statusText} via voice.`)
         queryClient.invalidateQueries({ queryKey: ['lamps'] })
@@ -875,7 +874,6 @@ const VoiceModal = ({
 
       onClose()
       setAudioBlob(null)
-      setChunks([])
     } catch (error) {
       const message = getApiErrorMessage(
         error,
@@ -906,16 +904,14 @@ const VoiceModal = ({
       recorder.onstop = () => {
         const blob = new Blob(localChunks, { type: 'audio/webm' })
         setAudioBlob(blob)
-        setChunks([])
         stream.getTracks().forEach((t) => t.stop())
       }
 
-      setChunks([])
       setAudioBlob(null)
       setMediaRecorder(recorder)
       recorder.start()
       setIsRecording(true)
-    } catch (err) {
+    } catch {
       toast.error('Could not access microphone. Please check permissions and try again.')
     }
   }
