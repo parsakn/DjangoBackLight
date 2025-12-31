@@ -196,13 +196,28 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
+# HTTPS/SSL Configuration
+# Trust the X-Forwarded-Proto header from nginx reverse proxy
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Only enforce HTTPS in production (when DEBUG=False)
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
 # CORS Configuration
-# Allow requests from the React frontend during development
+# Allow requests from the React frontend during development and production
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Vite default port
-    "http://localhost:3000",  # Alternative port
+    "http://localhost:5173",  # Vite default port (development)
+    "http://localhost:3000",  # Alternative port (development)
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
+    "https://node.lilms.top",  # Production HTTPS
+    "https://www.node.lilms.top",  # Production HTTPS with www
 ]
 
 # Allow credentials (cookies, authorization headers, etc.)

@@ -3,8 +3,7 @@ services:
     image: ghcr.io/parsakn/djangobacklight/backend:latest
     container_name: smartlight-backend
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    # Ports no longer exposed directly - accessed through nginx
     environment:
       - DJANGO_SETTINGS_MODULE=SmartLight.settings
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
@@ -31,8 +30,7 @@ services:
     image: ghcr.io/parsakn/djangobacklight/frontend:latest
     container_name: smartlight-frontend
     restart: unless-stopped
-    ports:
-      - "80:80"
+    # Ports no longer exposed directly - accessed through nginx
     depends_on:
       - backend
     healthcheck:
@@ -43,6 +41,35 @@ services:
       start_period: 5s
     networks:
       - smartlight-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: smartlight-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx-init.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/nginx-https.conf:/etc/nginx/nginx-https.conf:ro
+      - ./nginx/nginx-http-includes.conf:/etc/nginx/conf.d/http-includes.conf:ro
+      - certbot-www:/var/www/certbot
+      - certbot-conf:/etc/letsencrypt
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - smartlight-network
+
+  certbot:
+    image: certbot/certbot
+    container_name: smartlight-certbot
+    restart: unless-stopped
+    volumes:
+      - certbot-www:/var/www/certbot
+      - certbot-conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   redis:
     image: redis:7-alpine
@@ -65,4 +92,7 @@ networks:
 
 volumes:
   redis-data:
+  certbot-www:
+  certbot-conf:
+  nginx-logs:
 
