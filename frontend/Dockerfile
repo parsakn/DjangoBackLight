@@ -1,27 +1,25 @@
 # Frontend Dockerfile - Multi-stage build for React/Vite application
+# Optimized for CI/CD: can use pre-built artifacts or build from source
 
 # Build stage
 FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
+# Copy everything first (including pre-built dist if available from artifacts)
 COPY . .
 
-# Build the application
-RUN npm run build
+# Install dependencies and build only if dist is empty or doesn't exist
+# In CI/CD, pre-built dist artifacts are downloaded before Docker build
+RUN if [ ! -d "dist" ] || [ -z "$(ls -A dist 2>/dev/null)" ]; then \
+      npm ci && \
+      npm run build; \
+    else \
+      echo "Using pre-built dist from artifacts"; \
+    fi
 
 # Production stage
 FROM nginx:alpine
-
-# Copy custom nginx config (optional - uses default if not provided)
-# COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html

@@ -46,6 +46,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Upload pip cache artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pip-cache-${{ hashFiles('requirements.txt') }}
+          path: |
+            ~/.cache/pip
+          retention-days: 7
+          compression-level: 6
+          if-no-files-found: ignore
+
       - name: Create .env file for CI
         env:
           SECRET_KEY: ${{ secrets.CI_SECRET_KEY || 'ci-test-key' }}
@@ -63,6 +74,17 @@ jobs:
 
       - name: Run Django tests
         run: python manage.py test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: |
+            test-results/
+            coverage.xml
+          retention-days: 7
+          if-no-files-found: ignore
 
   frontend-ci:
     name: Frontend CI
@@ -94,6 +116,14 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+      - name: Upload frontend build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist
+          retention-days: 1
+          compression-level: 6
 
   build-backend-image:
     name: Build Backend Docker Image
@@ -135,6 +165,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64
 
   build-frontend-image:
     name: Build Frontend Docker Image
@@ -155,6 +186,20 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download frontend build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist
+
+      - name: Verify frontend artifacts
+        run: |
+          if [ ! -d "frontend/dist" ] || [ -z "$(ls -A frontend/dist)" ]; then
+            echo "Error: Frontend build artifacts not found or empty"
+            exit 1
+          fi
+          echo "Frontend artifacts verified: $(du -sh frontend/dist | cut -f1)"
 
       - name: Extract metadata
         id: meta
