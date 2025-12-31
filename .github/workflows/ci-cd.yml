@@ -200,11 +200,19 @@ jobs:
           docker compose pull
           
           # Restart services with new images
+          # Nginx will automatically detect SSL certificates and use appropriate config
           docker compose up -d --force-recreate
+          
+          # Reload nginx to pick up any config changes
+          docker compose exec -T nginx nginx -s reload || echo "Nginx reload skipped (may not be running yet)"
           
           # Clean up old images
           docker image prune -f
           
           # Show running containers
           docker compose ps
+          
+          # Reminder about SSL setup
+          echo ""
+          echo "Note: If this is the first deployment, run ./nginx/init-letsencrypt.sh to set up SSL certificates."
 

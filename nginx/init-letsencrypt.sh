@@ -76,9 +76,8 @@ docker compose run --rm --entrypoint "\
     --force-renewal" certbot
 echo
 
-echo "### Switching nginx to HTTPS configuration ..."
-docker compose exec nginx cp /etc/nginx/nginx-https.conf /etc/nginx/conf.d/default.conf
-
-echo "### Reloading nginx ..."
-docker compose exec nginx nginx -s reload
+echo "### Reloading nginx to pick up HTTPS configuration ..."
+echo "Note: Nginx will automatically detect SSL certificates on next restart."
+echo "Restarting nginx container to apply HTTPS configuration..."
+docker compose restart nginx
 
