@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Certbot local data (created by init-letsencrypt.sh)
+certbot/
