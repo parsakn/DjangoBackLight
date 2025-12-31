@@ -50,7 +50,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx-init.conf:/etc/nginx/conf.d/default-init.conf:ro
+      - ./nginx/nginx-init.conf:/etc/nginx/nginx-init.conf:ro
       - ./nginx/nginx-https.conf:/etc/nginx/nginx-https.conf:ro
       - ./nginx/nginx-http-includes.conf:/etc/nginx/conf.d/http-includes.conf:ro
       - ./nginx/nginx-entrypoint.sh:/docker-entrypoint.d/10-nginx-config.sh:ro
