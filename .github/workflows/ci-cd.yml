@@ -184,6 +184,26 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
+      - name: Clean up certbot directory (if exists from old setup)
+        run: |
+          # Cleanup legacy certbot directory from previous init-letsencrypt.sh versions
+          # NOTE: Current init-letsencrypt.sh no longer creates local ./certbot directory
+          # This step only cleans up directories from old installations
+          # The ACTUAL SSL certificates are safely stored in Docker volumes:
+          # - certbot-conf:/etc/letsencrypt (actual certificates)
+          # - certbot-www:/var/www/certbot (webroot challenges)
+          # These Docker volumes are NOT affected by this cleanup.
+          WORKSPACE_DIR="${{ runner.workspace }}/${{ github.event.repository.name }}"
+          
+          if [ -d "$WORKSPACE_DIR/certbot" ]; then
+            echo "Found legacy certbot directory from old setup, removing..."
+            sudo rm -rf "$WORKSPACE_DIR/certbot" 2>/dev/null || \
+            echo "Warning: Could not remove certbot directory (may not exist or already cleaned)"
+          else
+            echo "No legacy certbot directory found, skipping cleanup"
+          fi
+        continue-on-error: true
+
       - name: Checkout code
         uses: actions/checkout@v4
 
