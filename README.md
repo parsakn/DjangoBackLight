@@ -1,7 +1,7 @@
 ## SmartLight – Voice‑enabled Smart Home Backend & Frontend
 
 ### 1. Backend setup
-
+s
 1. **Create and activate a virtualenv**
    ```bash
    cd DjangoBackLight
